@@ -59,11 +59,7 @@ describe("VaultSwitcherComponent", () => {
     fixture.detectChanges();
   });
 
-  /**
-   * `organizations$` is empty for an account with one reachable vault — a personal vault alone, or
-   * a single organization under data ownership — so the switcher gates on it rather than
-   * re-deriving the org count and policy state the filter service already has.
-   */
+  /** Gated on `organizations$`, which is empty for a lone vault, rather than re-deriving it. */
   it("renders nothing when there is only one reachable vault", () => {
     expect(trigger()).toBeNull();
   });
@@ -95,10 +91,7 @@ describe("VaultSwitcherComponent", () => {
       expect(fixture.nativeElement.textContent).toContain("allItems");
     });
 
-    /**
-     * The label comes from the route-derived scope, so a vault restored from the popup router
-     * cache shows without the switcher holding any state of its own.
-     */
+    /** Labelled from the route-derived scope, so a cache-restored vault shows with no local state. */
     it("labels the trigger from a scope the route resolved", () => {
       fixture.componentRef.setInput("scope", {
         type: VaultScopeType.Organization,
@@ -109,32 +102,17 @@ describe("VaultSwitcherComponent", () => {
       expect(fixture.nativeElement.textContent).toContain("Acme corporation");
     });
 
-    /**
-     * The tiles come from the shared `navIconTile`, so a vault reads the same color here as in the
-     * web side nav and the item table's Vault column.
-     */
-    /**
-     * The trigger is the chevron alone, so it carries no text of its own and needs an explicit
-     * name — the label beside it is not part of the button.
-     */
+    /** The chevron carries no text of its own, so it needs an explicit name. */
     it("gives the icon-only trigger an accessible name", () => {
       expect(trigger().nativeElement.getAttribute("aria-label")).toBe("switchVault");
     });
 
-    /**
-     * The trigger has to sit on the button itself: the directive restores focus to its own host on
-     * every close path, and its `aria-expanded`/`aria-haspopup` bindings land there too. On a
-     * non-focusable wrapper the focus call is a no-op and the button announces no popup state.
-     */
-    /**
-     * `bitTypography` is a static attribute, so a missing `TypographyModule` matches no directive
-     * and raises no error — the label silently loses its `h5` classes.
-     */
     /** The header drops its own `h1` while this label renders, so this is the page's only one. */
     it("renders the label as the page's h1", () => {
       expect(fixture.debugElement.query(By.css("h1"))).not.toBeNull();
     });
 
+    /** `bitTypography` is a static attribute, so a missing module loses the classes silently. */
     it("styles the label as a heading", () => {
       const label = fixture.debugElement.query(By.css("[bitTypography]")).nativeElement;
 
@@ -142,6 +120,7 @@ describe("VaultSwitcherComponent", () => {
       expect(label.classList).toContain("tw-font-medium");
     });
 
+    /** On a non-focusable wrapper the directive's focus restore and aria bindings are lost. */
     it("carries the menu trigger on the focusable button", () => {
       const button = trigger().nativeElement as HTMLElement;
 
@@ -150,6 +129,7 @@ describe("VaultSwitcherComponent", () => {
       expect(button.getAttribute("aria-expanded")).toBe("false");
     });
 
+    /** Shared `navIconTile`, so a vault reads the same color as in the web side nav. */
     it("renders a tile on the trigger and on every entry", () => {
       expect(fixture.debugElement.queryAll(By.css("bit-icon-tile")).length).toBe(1);
 
@@ -175,9 +155,8 @@ describe("VaultSwitcherComponent", () => {
     });
 
     /**
-     * Regression: the highlight was keyed to the trigger's `aria-expanded`, which the directive
-     * clears from a CDK overlay subscription that runs no change detection — so under `OnPush` the
-     * open styling survived the menu closing.
+     * Regression: keyed to `aria-expanded`, which the directive clears without change detection,
+     * so under `OnPush` the open styling survived the close.
      */
     describe("chevron highlight", () => {
       const chevron = () =>

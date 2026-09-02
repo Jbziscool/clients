@@ -120,13 +120,6 @@ export class PopupHeaderComponent {
     this.titleBarSuppressed() ? "side-nav" : "primaryGhost",
   );
 
-  /**
-   * Collapsed by scroll, unlike `titleBarSuppressed` — the bar is still there and focusable.
-   *
-   * A restored scroll position also collapses it. The restore arrives as one programmatic jump,
-   * which `scrollDirection` re-anchors without reading as intent, so the bar would otherwise
-   * return expanded onto a page the user had already scrolled away from the top of.
-   */
   protected readonly titleBarHidden = computed(
     () =>
       this.vfo1Enabled() &&
