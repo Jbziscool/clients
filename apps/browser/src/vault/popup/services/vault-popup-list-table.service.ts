@@ -23,6 +23,7 @@ import { uuidAsString } from "@bitwarden/common/platform/abstractions/sdk/sdk.se
 import { CipherId } from "@bitwarden/common/types/guid";
 import { CipherService } from "@bitwarden/common/vault/abstractions/cipher.service";
 import { VaultSettingsService } from "@bitwarden/common/vault/abstractions/vault-settings/vault-settings.service";
+import { CipherType } from "@bitwarden/common/vault/enums";
 import { SearchTextDebounceInterval } from "@bitwarden/common/vault/services/search.service";
 import {
   CipherViewLike,
@@ -39,6 +40,7 @@ import {
   matchesVault,
   PasswordRepromptService,
   type VaultScope,
+  VaultScopeType,
 } from "@bitwarden/vault";
 
 import { BrowserApi } from "../../../platform/browser/browser-api";
@@ -202,23 +204,57 @@ export class VaultPopupListTableService {
    * {@link rows$} already carries: with the VFO1 flag on, the chip selection is applied by the
    * table itself and never reaches this stream, so a count taken straight off the rows would sit
    * above a list the chips had narrowed and contradict it.
+   *
+   * Only the chips the current scope still offers are applied — see {@link scopedFilters}. A
+   * selection cached under a different vault outlives the chip that made it, and applying one the
+   * table has dropped would put the count below its own list rather than above it.
    */
   readonly itemCount$: Observable<number> = combineLatest([
     this.rows$,
     this.listFiltersService.selectedFilters$,
+    this.scope$,
   ]).pipe(
-    map(
-      ([rows, filters]) =>
-        rows.filter(
-          (row) =>
-            row._section === "allItems" &&
-            matchesType(row.cipher, filters.cipherType) &&
-            matchesVault(row.cipher, filters.organization) &&
-            matchesSharedFolder(row.cipher, filters.collection) &&
-            matchesFolder(row.cipher, filters.folder),
-        ).length,
-    ),
+    map(([rows, selected, scope]) => {
+      const filters = this.scopedFilters(selected, scope);
+
+      return rows.filter(
+        (row) =>
+          row._section === "allItems" &&
+          matchesType(row.cipher, filters.cipherType) &&
+          matchesVault(row.cipher, filters.organization) &&
+          matchesSharedFolder(row.cipher, filters.collection) &&
+          matchesFolder(row.cipher, filters.folder),
+      ).length;
+    }),
   );
+
+  /**
+   * The cached chip selection, less the chips the current scope has taken away.
+   *
+   * A scoped vault drops the organization chip, so a vault selection cached under a different
+   * scope has no control left to hold it and never reaches the table's own filtering. The scope
+   * already narrows the rows to one vault, so re-applying an organization id here could only
+   * contradict it.
+   *
+   * The shared-folder and folder chips narrow to the scoped vault's own options rather than
+   * disappearing, so their cached values are left alone: the table still holds them, and a value
+   * naming a folder outside the scope is the table's to validate.
+   */
+  private scopedFilters(
+    selected: {
+      cipherType: CipherType | null;
+      organization: string[];
+      collection: string[];
+      folder: string[];
+    },
+    scope: VaultScope,
+  ) {
+    if (scope.type === VaultScopeType.AllItems) {
+      return selected;
+    }
+
+    return { ...selected, organization: [] as string[] };
+  }
 
   private toRow(
     cipher: PopupCipherViewLike,

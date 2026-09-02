@@ -204,6 +204,56 @@ describe("VaultPopupListTableService", () => {
 
         expect(rows.map((r) => r.cipher.id)).toEqual(["personal", "org"]);
       });
+
+      /**
+       * A scoped vault drops the organization chip, but the selection made before the switch stays
+       * cached. Applying it would put the count below the list the table renders, which never saw
+       * it — the mirror of the contradiction the chip narrowing fixes.
+       */
+      describe("with a stale vault chip selection", () => {
+        beforeEach(() => {
+          selectedFilters$.next({
+            cipherType: null,
+            organization: [ORG_ID],
+            collection: [],
+            folder: [],
+          });
+        });
+
+        it("ignores it under a personal-vault scope", async () => {
+          service.setScope({ type: VaultScopeType.MyVault });
+
+          const rows = await firstValueFrom(service.rows$);
+
+          expect(rows.map((r) => r.cipher.id)).toEqual(["personal"]);
+          expect(await firstValueFrom(service.itemCount$)).toBe(1);
+        });
+
+        it("ignores it under a different organization's scope", async () => {
+          const OTHER_ORG = "22222222-2222-4222-8222-222222222222";
+          filteredCiphers$.next([
+            makeCipher({ id: "personal", organizationId: null }),
+            makeCipher({ id: "org", organizationId: ORG_ID }),
+            makeCipher({ id: "other", organizationId: OTHER_ORG }),
+          ]);
+          service.setScope({
+            type: VaultScopeType.Organization,
+            organizationId: OTHER_ORG as OrganizationId,
+          });
+
+          const rows = await firstValueFrom(service.rows$);
+
+          expect(rows.map((r) => r.cipher.id)).toEqual(["other"]);
+          expect(await firstValueFrom(service.itemCount$)).toBe(1);
+        });
+
+        it("applies it again once the scope clears", async () => {
+          service.setScope({ type: VaultScopeType.MyVault });
+          service.setScope(null);
+
+          expect(await firstValueFrom(service.itemCount$)).toBe(1);
+        });
+      });
     });
 
     /**
