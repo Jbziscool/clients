@@ -25,6 +25,7 @@ import { PopupCipherViewLike } from "../views/popup-cipher.view";
 
 import { VaultPopupAutofillService } from "./vault-popup-autofill.service";
 import { VaultPopupItemsService } from "./vault-popup-items.service";
+import { VaultPopupListTableFiltersService } from "./vault-popup-list-table-filters.service";
 import { VaultPopupListTableService } from "./vault-popup-list-table.service";
 import { VaultPopupLoadingService } from "./vault-popup-loading.service";
 
@@ -47,6 +48,13 @@ describe("VaultPopupListTableService", () => {
   const simplifiedItemActionEnabled$ = new BehaviorSubject<boolean>(false);
   const currentTabIsOnBlocklist$ = new BehaviorSubject<boolean>(false);
   const clickItemsToAutofillVaultView$ = new BehaviorSubject<boolean>(true);
+  /** The chip selection, as the table's `filterValues` reports it. */
+  const selectedFilters$ = new BehaviorSubject<{
+    cipherType: CipherType | null;
+    organization: string[];
+    collection: string[];
+    folder: string[];
+  }>({ cipherType: null, organization: [], collection: [], folder: [] });
 
   const makeCipher = (overrides: Partial<PopupCipherViewLike> = {}): PopupCipherViewLike =>
     ({ id: "cipher-1", name: "Item", type: CipherType.Login, ...overrides }) as PopupCipherViewLike;
@@ -62,6 +70,7 @@ describe("VaultPopupListTableService", () => {
     simplifiedItemActionEnabled$.next(false);
     currentTabIsOnBlocklist$.next(false);
     clickItemsToAutofillVaultView$.next(true);
+    selectedFilters$.next({ cipherType: null, organization: [], collection: [], folder: [] });
 
     cipherService = mock<CipherService>();
     vaultPopupAutofillService = mock<VaultPopupAutofillService>();
@@ -112,6 +121,10 @@ describe("VaultPopupListTableService", () => {
           useValue: {
             clickItemsToAutofillVaultView$: clickItemsToAutofillVaultView$.asObservable(),
           },
+        },
+        {
+          provide: VaultPopupListTableFiltersService,
+          useValue: { selectedFilters$: selectedFilters$.asObservable() },
         },
       ],
     });
@@ -190,6 +203,53 @@ describe("VaultPopupListTableService", () => {
         const rows = await firstValueFrom(service.rows$);
 
         expect(rows.map((r) => r.cipher.id)).toEqual(["personal", "org"]);
+      });
+    });
+
+    /**
+     * The chips are applied by the table rather than by `rows$` — with the VFO1 flag on,
+     * `filterFunction` is deliberately skipped upstream — so a count taken straight off the rows
+     * would sit above a list the chips had narrowed and contradict it.
+     */
+    describe("chip filters", () => {
+      beforeEach(() => {
+        filteredCiphers$.next([
+          makeCipher({ id: "login", name: "Login", type: CipherType.Login }),
+          makeCipher({ id: "card", name: "Card", type: CipherType.Card }),
+          makeCipher({ id: "note", name: "Note", type: CipherType.SecureNote }),
+        ]);
+      });
+
+      it("counts every item when no chip is selected", async () => {
+        expect(await firstValueFrom(service.itemCount$)).toBe(3);
+      });
+
+      it("counts only the items a type chip admits", async () => {
+        selectedFilters$.next({
+          cipherType: CipherType.Card,
+          organization: [],
+          collection: [],
+          folder: [],
+        });
+
+        expect(await firstValueFrom(service.itemCount$)).toBe(1);
+      });
+
+      it("counts every item again when the chip clears", async () => {
+        selectedFilters$.next({
+          cipherType: CipherType.Card,
+          organization: [],
+          collection: [],
+          folder: [],
+        });
+        selectedFilters$.next({
+          cipherType: null,
+          organization: [],
+          collection: [],
+          folder: [],
+        });
+
+        expect(await firstValueFrom(service.itemCount$)).toBe(3);
       });
     });
 

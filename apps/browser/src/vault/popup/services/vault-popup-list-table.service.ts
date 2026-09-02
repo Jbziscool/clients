@@ -33,6 +33,10 @@ import {
   ALL_ITEMS_SCOPE,
   cipherInScope,
   DecryptionFailureDialogComponent,
+  matchesFolder,
+  matchesSharedFolder,
+  matchesType,
+  matchesVault,
   PasswordRepromptService,
   type VaultScope,
 } from "@bitwarden/vault";
@@ -43,6 +47,7 @@ import { PopupCipherViewLike } from "../views/popup-cipher.view";
 
 import { VaultPopupAutofillService } from "./vault-popup-autofill.service";
 import { VaultPopupItemsService } from "./vault-popup-items.service";
+import { VaultPopupListTableFiltersService } from "./vault-popup-list-table-filters.service";
 import { VaultPopupLoadingService } from "./vault-popup-loading.service";
 
 /** The section a row belongs to within the vault list table. */
@@ -103,6 +108,7 @@ export class VaultPopupListTableService {
   private readonly router = inject(Router);
   private readonly vaultPopupAutofillService = inject(VaultPopupAutofillService);
   private readonly configService = inject(ConfigService);
+  private readonly listFiltersService = inject(VaultPopupListTableFiltersService);
   private readonly vaultSettingsService = inject(VaultSettingsService);
 
   /**
@@ -190,11 +196,28 @@ export class VaultPopupListTableService {
    *
    * Counted off the `allItems` section rather than {@link rows$} as a whole: a cipher that is both
    * an autofill suggestion and a favorite appears in up to three sections, and that section always
-   * holds the complete list once each. Reading it here keeps the count in step with the rows —
-   * including the vault scope, which narrows both.
+   * holds the complete list once each.
+   *
+   * The chips are applied here too, rather than only the vault scope and the search that
+   * {@link rows$} already carries: with the VFO1 flag on, the chip selection is applied by the
+   * table itself and never reaches this stream, so a count taken straight off the rows would sit
+   * above a list the chips had narrowed and contradict it.
    */
-  readonly itemCount$: Observable<number> = this.rows$.pipe(
-    map((rows) => rows.filter((row) => row._section === "allItems").length),
+  readonly itemCount$: Observable<number> = combineLatest([
+    this.rows$,
+    this.listFiltersService.selectedFilters$,
+  ]).pipe(
+    map(
+      ([rows, filters]) =>
+        rows.filter(
+          (row) =>
+            row._section === "allItems" &&
+            matchesType(row.cipher, filters.cipherType) &&
+            matchesVault(row.cipher, filters.organization) &&
+            matchesSharedFolder(row.cipher, filters.collection) &&
+            matchesFolder(row.cipher, filters.folder),
+        ).length,
+    ),
   );
 
   private toRow(

@@ -109,6 +109,25 @@ export class VaultPopupListTableFiltersService {
   hasFilterApplied$ = toObservable(this.hasFilterApplied);
 
   /**
+   * The current chip selection, in the shape the table's `filterValues` uses.
+   *
+   * The table applies the chips itself, so anything outside it that has to agree with the rows on
+   * screen — the header's item count — narrows by these rather than assuming the rows it was
+   * handed are already filtered.
+   */
+  readonly selectedFilters$ = toObservable(
+    computed(() => {
+      const filters = this.cachedFilters();
+      return {
+        cipherType: filters.cipherType ?? null,
+        organization: filters.organizationIds ?? [],
+        collection: filters.collectionIds ?? [],
+        folder: filters.folderIds ?? [],
+      };
+    }),
+  );
+
+  /**
    * Persists the current chip selection to the view cache.
    * Call this whenever the table's `filterValues` signal emits a new value.
    *
