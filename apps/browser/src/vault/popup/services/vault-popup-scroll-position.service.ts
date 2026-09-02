@@ -3,6 +3,8 @@ import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { NavigationEnd, Router } from "@angular/router";
 import { filter, fromEvent, Subscription } from "rxjs";
 
+import { VAULT_BASE_ROUTE } from "@bitwarden/vault";
+
 @Injectable({
   providedIn: "root",
 })
@@ -10,7 +12,7 @@ export class VaultPopupScrollPositionService {
   private router = inject(Router);
 
   /** Path of the vault screen */
-  private readonly vaultPath = "/tabs/vault";
+  private readonly vaultPath = inject(VAULT_BASE_ROUTE);
 
   /** Current scroll position relative to the top of the viewport. */
   private scrollPosition: number | null = null;
@@ -69,7 +71,7 @@ export class VaultPopupScrollPositionService {
   /** Conditionally resets the scroll listeners based on the ending path of the navigation */
   private resetListenerForNavigation(event: NavigationEnd): void {
     // The vault page is the target of the scroll listener, return early
-    if (event.url === this.vaultPath) {
+    if (this.isVaultUrl(event.url)) {
       return;
     }
 
@@ -77,5 +79,18 @@ export class VaultPopupScrollPositionService {
     if (event.url.startsWith("/tabs/")) {
       this.stop(true);
     }
+  }
+
+  /**
+   * Whether a URL lands on the vault page — either unscoped, or scoped to one of the account's
+   * vaults by the `:vaultId` segment. A scoped vault is the same page narrowed rather than a
+   * different tab, so switching between vaults keeps the scroll position the listener has stored.
+   *
+   * Compares against whole segments so a sibling route sharing the prefix — a hypothetical
+   * `/tabs/vault-settings` — is not mistaken for the vault itself.
+   */
+  private isVaultUrl(url: string): boolean {
+    const path = url.split("?")[0].split("#")[0];
+    return path === this.vaultPath || path.startsWith(`${this.vaultPath}/`);
   }
 }

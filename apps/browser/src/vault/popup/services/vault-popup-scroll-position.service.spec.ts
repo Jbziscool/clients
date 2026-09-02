@@ -2,6 +2,8 @@ import { fakeAsync, TestBed, tick } from "@angular/core/testing";
 import { NavigationEnd, Router } from "@angular/router";
 import { Subject, Subscription } from "rxjs";
 
+import { VAULT_BASE_ROUTE } from "@bitwarden/vault";
+
 import { VaultPopupScrollPositionService } from "./vault-popup-scroll-position.service";
 
 describe("VaultPopupScrollPositionService", () => {
@@ -16,6 +18,8 @@ describe("VaultPopupScrollPositionService", () => {
       providers: [
         VaultPopupScrollPositionService,
         { provide: Router, useValue: { events: events$ } },
+        // The popup's own vault path, which the app supplies in `services.module.ts`.
+        { provide: VAULT_BASE_ROUTE, useValue: "/tabs/vault" },
       ],
     });
 
@@ -35,6 +39,43 @@ describe("VaultPopupScrollPositionService", () => {
 
       expect(service["scrollPosition"]).toBe(234);
       expect(service["scrollSubscription"]).not.toBeNull();
+    }));
+
+    it.each([
+      ["/tabs/vault/my-vault"],
+      ["/tabs/vault/11111111-1111-4111-8111-111111111111"],
+      ["/tabs/vault/11111111-1111-4111-8111-111111111111/22222222-2222-4222-8222-222222222222"],
+      ["/tabs/vault/trash"],
+    ])(
+      "does not reset service when navigating to the scoped vault route %s",
+      fakeAsync((url: string) => {
+        const event = new NavigationEnd(22, url, "");
+        events$.next(event);
+
+        tick();
+
+        expect(service["scrollPosition"]).toBe(234);
+        expect(service["scrollSubscription"]).not.toBeNull();
+      }),
+    );
+
+    it("does not reset service when the vault route carries a query string", fakeAsync(() => {
+      const event = new NavigationEnd(22, "/tabs/vault/my-vault?search=foo", "");
+      events$.next(event);
+
+      tick();
+
+      expect(service["scrollPosition"]).toBe(234);
+    }));
+
+    it("resets values on a tab page that merely shares the vault prefix", fakeAsync(() => {
+      const event = new NavigationEnd(23, "/tabs/vault-settings", "");
+      events$.next(event);
+
+      tick();
+
+      expect(service["scrollPosition"]).toBeNull();
+      expect(service["scrollSubscription"]).toBeNull();
     }));
 
     it("resets values when navigating to other tab pages", fakeAsync(() => {
