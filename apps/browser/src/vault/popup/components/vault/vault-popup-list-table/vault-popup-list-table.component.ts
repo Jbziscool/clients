@@ -8,7 +8,6 @@ import {
   Component,
   computed,
   DestroyRef,
-  effect,
   inject,
   Injector,
   signal,
@@ -470,32 +469,19 @@ export class VaultPopupListTableComponent {
           this.validateOrgChips(table, values);
         });
 
-      // Clear the vault-scoped chips when the page moves into a different vault, matching the
-      // condition the service clears the cache on. The controls hold their own values, so a chip
-      // left set would keep narrowing the rows under a vault whose options no longer include it.
-      // Widening back out to All items keeps them: nothing selected there has stopped existing.
-      let previousVaultKey = this.listTableService.scopedVaultKey();
-      effect(
-        () => {
-          const vaultKey = this.listTableService.scopedVaultKey();
-          if (vaultKey === previousVaultKey) {
-            return;
-          }
-          const movedIntoAVault = vaultKey != null;
-          previousVaultKey = vaultKey;
-
-          if (!movedIntoAVault) {
-            return;
-          }
-
+      // Reset the controls when a vault switch clears the cache. They hold their own values, so a
+      // chip left set would keep narrowing the rows under a vault whose options no longer offer
+      // it. Driven by the switcher's own signal rather than by the scope, which also publishes on
+      // popup open with a scope the route already held.
+      this.listFiltersService.vaultScopedFiltersCleared$
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => {
           for (const control of table.filterControls()) {
             if (VAULT_SCOPED_FILTER_KEYS.includes(control.key())) {
               control.setValue(undefined);
             }
           }
-        },
-        { injector: this.injector },
-      );
+        });
     });
   }
 

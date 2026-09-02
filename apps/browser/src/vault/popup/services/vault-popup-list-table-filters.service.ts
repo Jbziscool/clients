@@ -1,6 +1,15 @@
 import { computed, inject, Injectable, signal } from "@angular/core";
 import { toObservable } from "@angular/core/rxjs-interop";
-import { combineLatest, filter, map, Observable, shareReplay, switchMap, take } from "rxjs";
+import {
+  combineLatest,
+  filter,
+  map,
+  Observable,
+  shareReplay,
+  Subject,
+  switchMap,
+  take,
+} from "rxjs";
 
 import { CollectionService } from "@bitwarden/admin-console/common";
 import { ViewCacheService } from "@bitwarden/angular/platform/view-cache";
@@ -108,6 +117,11 @@ export class VaultPopupListTableFiltersService {
   /** Observable mirror of {@link hasFilterApplied} for use in RxJS pipelines. */
   hasFilterApplied$ = toObservable(this.hasFilterApplied);
 
+  private readonly vaultScopedFiltersCleared = new Subject<void>();
+
+  /** Emits on {@link clearVaultScopedFilters}, so the table can reset its own chip controls. */
+  readonly vaultScopedFiltersCleared$ = this.vaultScopedFiltersCleared.asObservable();
+
   /**
    * The current chip selection, in the shape the table's `filterValues` uses.
    *
@@ -170,6 +184,7 @@ export class VaultPopupListTableFiltersService {
       cipherType: this.cachedFilters().cipherType ?? null,
     });
     this.selectedOrganizations.set([]);
+    this.vaultScopedFiltersCleared.next();
   }
 
   /**

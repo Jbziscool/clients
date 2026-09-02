@@ -5,7 +5,7 @@ import { By } from "@angular/platform-browser";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { RouterTestingModule } from "@angular/router/testing";
 import { mock } from "jest-mock-extended";
-import { BehaviorSubject, of } from "rxjs";
+import { BehaviorSubject, of, Subject } from "rxjs";
 
 import { CollectionService } from "@bitwarden/admin-console/common";
 import { WINDOW } from "@bitwarden/angular/services/injection-tokens";
@@ -135,10 +135,14 @@ describe("VaultPopupListTableComponent", () => {
   let listTableSvc: VaultPopupListTableService;
   const folders$ = new BehaviorSubject<ChipFilterOption<FolderView>[]>([]);
 
+  /** Emitted by the switcher's clear, which the table follows to reset its own controls. */
+  const vaultScopedFiltersCleared$ = new Subject<void>();
+
   const vaultPopupListTableFiltersService = {
     restoreFilters$: jest.fn().mockReturnValue(of({})),
     saveFilters: jest.fn(),
     clearVaultScopedFilters: jest.fn(),
+    vaultScopedFiltersCleared$: vaultScopedFiltersCleared$.asObservable(),
     selectedFilters$: of({
       cipherType: null,
       organization: [] as string[],
@@ -584,44 +588,28 @@ describe("VaultPopupListTableComponent", () => {
        * cache is not enough — a chip left set keeps narrowing the rows, and the selection shows up
        * again on returning to All items.
        */
-      describe("clearing chips on a vault switch", () => {
-        it("drops the cached vault-scoped selections", () => {
-          listTableSvc.setScope({ type: VaultScopeType.MyVault });
-          fixture.detectChanges();
+      /**
+       * The controls hold their own values, so the cache clearing is not enough — a chip left set
+       * would keep narrowing the rows under a vault whose options no longer offer it. Driven by
+       * the switcher's signal rather than the scope, which also publishes on popup open.
+       */
+      it("resets its chip controls when a vault switch clears the cache", async () => {
+        collections$.next([{ value: col1, label: "Alpha" } as any]);
+        fixture.detectChanges();
+        // The subscription is set up in `afterNextRender`, which needs the render hooks flushed.
+        await fixture.whenStable();
 
-          expect(vaultPopupListTableFiltersService.clearVaultScopedFilters).toHaveBeenCalled();
-        });
+        const byKey = new Map(
+          component["tableEl"]()!
+            .filterControls()
+            .map((c: any) => [c.key(), jest.spyOn(c, "setValue")]),
+        );
 
-        it("does not drop them when the scope stays on the same vault", () => {
-          listTableSvc.setScope({ type: VaultScopeType.MyVault });
-          fixture.detectChanges();
-          vaultPopupListTableFiltersService.clearVaultScopedFilters.mockClear();
+        vaultScopedFiltersCleared$.next();
+        fixture.detectChanges();
 
-          listTableSvc.setScope({ type: VaultScopeType.MyVault });
-          fixture.detectChanges();
-
-          expect(vaultPopupListTableFiltersService.clearVaultScopedFilters).not.toHaveBeenCalled();
-        });
-
-        /** Trash and the Archive span every vault, so moving to them is not a vault switch. */
-        it("does not drop them when moving to the archive", () => {
-          listTableSvc.setScope({ type: VaultScopeType.Archive });
-          fixture.detectChanges();
-
-          expect(vaultPopupListTableFiltersService.clearVaultScopedFilters).not.toHaveBeenCalled();
-        });
-
-        /** All items widens, so nothing selected under the scoped vault has stopped existing. */
-        it("does not drop them when widening to All items", () => {
-          listTableSvc.setScope({ type: VaultScopeType.MyVault });
-          fixture.detectChanges();
-          vaultPopupListTableFiltersService.clearVaultScopedFilters.mockClear();
-
-          listTableSvc.setScope(null);
-          fixture.detectChanges();
-
-          expect(vaultPopupListTableFiltersService.clearVaultScopedFilters).not.toHaveBeenCalled();
-        });
+        expect(byKey.get("collection")).toHaveBeenCalledWith(undefined);
+        expect(byKey.get("cipherType")).not.toHaveBeenCalled();
       });
 
       it("keeps every organization's shared folders when unscoped", () => {

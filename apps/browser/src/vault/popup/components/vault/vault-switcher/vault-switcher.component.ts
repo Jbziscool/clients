@@ -27,6 +27,8 @@ import {
   vaultScopeCommands,
 } from "@bitwarden/vault";
 
+import { VaultPopupListTableFiltersService } from "../../../services/vault-popup-list-table-filters.service";
+
 /** A menu entry: one of the account's vaults, or the unscoped "All items" entry. */
 interface VaultSwitcherEntry {
   /** The `:vaultId` segment, or `null` for All items. */
@@ -53,6 +55,7 @@ export class VaultSwitcherComponent {
   private readonly accountService = inject(AccountService);
   private readonly vaultNavService = inject(VaultNavService);
   private readonly basePath = inject(VAULT_BASE_ROUTE);
+  private readonly listFiltersService = inject(VaultPopupListTableFiltersService);
 
   /**
    * Whether the menu is open, for the chevron's highlight.
@@ -120,6 +123,13 @@ export class VaultSwitcherComponent {
   });
 
   protected select(id: string | null): void {
+    // Drop chip selections that name something belonging to the vault being left. Cleared from the
+    // user's action rather than from the scope publish it causes, since that publish also fires on
+    // popup open with a scope the route already held.
+    if (id != null) {
+      this.listFiltersService.clearVaultScopedFilters();
+    }
+
     void this.router.navigate(this.commandsFor(id), {
       // The scoped vault is the same page narrowed, not a step to return from.
       replaceUrl: true,

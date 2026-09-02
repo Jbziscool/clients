@@ -14,6 +14,8 @@ import {
   VaultScopeType,
 } from "@bitwarden/vault";
 
+import { VaultPopupListTableFiltersService } from "../../../services/vault-popup-list-table-filters.service";
+
 import { VaultSwitcherComponent } from "./vault-switcher.component";
 
 describe("VaultSwitcherComponent", () => {
@@ -24,6 +26,7 @@ describe("VaultSwitcherComponent", () => {
 
   const nav$ = new BehaviorSubject<any>({ vaults: [], organizationDataOwnership: false });
   const navigate = jest.fn();
+  const clearVaultScopedFilters = jest.fn();
 
   const trigger = () => fixture.debugElement.query(By.css('[data-testid="vault-switcher"]'));
 
@@ -36,6 +39,7 @@ describe("VaultSwitcherComponent", () => {
 
   beforeEach(async () => {
     navigate.mockClear();
+    clearVaultScopedFilters.mockClear();
     nav$.next({ vaults: [], organizationDataOwnership: false });
 
     await TestBed.configureTestingModule({
@@ -45,6 +49,10 @@ describe("VaultSwitcherComponent", () => {
         { provide: AccountService, useValue: { activeAccount$: of({ id: "user-1" }) } },
         { provide: Router, useValue: { navigate } },
         { provide: VAULT_BASE_ROUTE, useValue: "/tabs/vault" },
+        {
+          provide: VaultPopupListTableFiltersService,
+          useValue: { clearVaultScopedFilters },
+        },
         {
           provide: I18nService,
           useValue: { t: (key: string) => key, translate: (key: string) => key },
@@ -180,6 +188,45 @@ describe("VaultSwitcherComponent", () => {
         fixture.detectChanges();
 
         expect(chevron().classList).not.toContain("tw-bg-primary-100");
+      });
+    });
+
+    /**
+     * The chips select things belonging to one vault, so entering another invalidates them.
+     * Cleared here rather than on the scope publish, which also fires on popup open.
+     */
+    describe("vault-scoped chip filters", () => {
+      it("clears them when entering an organization's vault", () => {
+        const options = openMenu();
+        (options[2] as HTMLElement).click();
+
+        expect(clearVaultScopedFilters).toHaveBeenCalled();
+      });
+
+      it("clears them when entering the personal vault", () => {
+        const options = openMenu();
+        (options[1] as HTMLElement).click();
+
+        expect(clearVaultScopedFilters).toHaveBeenCalled();
+      });
+
+      /** All items widens, so nothing selected under a vault has stopped existing. */
+      it("keeps them when widening to All items", () => {
+        const options = openMenu();
+        (options[0] as HTMLElement).click();
+
+        expect(clearVaultScopedFilters).not.toHaveBeenCalled();
+      });
+
+      /** Nothing is cleared until the user actually picks a vault. */
+      it("keeps them while the popup merely opens on a scoped route", () => {
+        fixture.componentRef.setInput("scope", {
+          type: VaultScopeType.Organization,
+          organizationId: ORG_ID as OrganizationId,
+        });
+        fixture.detectChanges();
+
+        expect(clearVaultScopedFilters).not.toHaveBeenCalled();
       });
     });
 

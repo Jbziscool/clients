@@ -45,17 +45,14 @@ export class VaultPopupScrollPositionService {
     const target = this.scrollPosition;
 
     if (restoring) {
-      // Declare that the page is returning to a position it already held, so chrome that collapses
-      // on scroll arrives collapsed instead of animating out of the way after the fact. The restore
-      // reaches the element as one programmatic jump, which scroll-direction tracking deliberately
-      // does not read as intent, so the state has to be declared rather than inferred.
       this.scrollLayout.restoredScrolled.set(true);
 
       // Use `setTimeout` to scroll after rendering is complete
       setTimeout(() => {
         scrollElement.scrollTo({ top: target!, behavior: "instant" });
-        // Release the guard only once the restore has been applied, so the events it provokes are
-        // attributed to the restore rather than to the user.
+        if (scrollElement.scrollTop === 0) {
+          this.scrollLayout.restoredScrolled.set(false);
+        }
         setTimeout(() => {
           this.restoring = false;
         });
@@ -65,17 +62,13 @@ export class VaultPopupScrollPositionService {
     this.scrollSubscription?.unsubscribe();
 
     // Ignore scroll events until the restore above has settled. Counting events does not work: a
-    // restore can provoke more than one — the browser clamps `scrollTop` when the content is
-    // shorter than it was when the position was saved — and treating those as the user's own
-    // scrolling would overwrite the stored position with wherever the restore happened to land.
+    // restore can provoke more than one.
     this.restoring = restoring;
 
     this.scrollSubscription = fromEvent(scrollElement, "scroll").subscribe(() => {
       if (this.restoring) {
         return;
       }
-      // The restore has been handed back to the user: from here the bar follows their scrolling
-      // again, so the declared state has to give way to the tracked one.
       this.scrollLayout.restoredScrolled.set(false);
       this.scrollPosition = scrollElement.scrollTop;
     });
@@ -85,11 +78,7 @@ export class VaultPopupScrollPositionService {
   stop(reset?: true) {
     this.scrollSubscription?.unsubscribe();
     this.scrollSubscription = null;
-    // A stop mid-restore must not leave the guard raised, or the next listener would ignore the
-    // user's scrolling entirely.
     this.restoring = false;
-    // The declared state belongs to the page being restored. Leaving it set would collapse the
-    // next page's bar before that page has been scrolled at all.
     this.scrollLayout.restoredScrolled.set(false);
 
     if (reset) {
@@ -115,14 +104,6 @@ export class VaultPopupScrollPositionService {
     }
   }
 
-  /**
-   * Whether a URL lands on the vault page — either unscoped, or scoped to one of the account's
-   * vaults by the `:vaultId` segment. A scoped vault is the same page narrowed rather than a
-   * different tab, so switching between vaults keeps the scroll position the listener has stored.
-   *
-   * Compares against whole segments so a sibling route sharing the prefix — a hypothetical
-   * `/tabs/vault-settings` — is not mistaken for the vault itself.
-   */
   private isVaultUrl(url: string): boolean {
     const path = url.split("?")[0].split("#")[0];
     return path === this.vaultPath || path.startsWith(`${this.vaultPath}/`);

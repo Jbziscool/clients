@@ -122,54 +122,14 @@ export class VaultPopupListTableService {
   readonly vaultScope = toSignal(this.scope$, { initialValue: ALL_ITEMS_SCOPE });
 
   /**
-   * The vault the scope narrows to, as a comparable key — `null` for All items and for the
-   * vault-spanning Trash and Archive scopes.
-   *
-   * Read by the table to notice a move between vaults, which invalidates the chips that select
-   * something belonging to one. Distinct from {@link vaultScope}, which changes for a
-   * shared-folder drill-in within the same vault too.
-   */
-  readonly scopedVaultKey = toSignal(this.scope$.pipe(map((scope) => this.vaultKey(scope))), {
-    initialValue: null as string | null,
-  });
-
-  /**
    * Narrows the vault to `scope`; {@link ALL_ITEMS_SCOPE} shows every vault's items.
    *
-   * Moving into a different single vault drops the chip selections that name a vault or something
-   * inside one — see {@link VaultPopupListTableFiltersService.clearVaultScopedFilters}. Widening
-   * back out to All items keeps them: a selection made there names something that still exists,
-   * and the chips that offered it are all back.
-   *
-   * Only a move between vaults clears them. This is called on every scope publish, including the
-   * first, so clearing on a re-publish of the same vault would discard the selections just
-   * restored from the cache.
+   * Publishing a scope does not clear the chip selections. This fires on popup open with whatever
+   * scope the route already held, so clearing here would drop a persisted selection before the
+   * table could restore it — the switcher clears from the user's action instead.
    */
   setScope(scope: VaultScope | null): void {
-    const next = scope ?? ALL_ITEMS_SCOPE;
-    const nextKey = this.vaultKey(next);
-
-    if (nextKey != null && nextKey !== this.vaultKey(this.scope$.value)) {
-      this.listFiltersService.clearVaultScopedFilters();
-    }
-
-    this.scope$.next(next);
-  }
-
-  /**
-   * The vault a scope narrows to, as a comparable key. Trash and the Archive span every vault, so
-   * they name no vault of their own and leave the chips alone; a shared-folder drill-in is keyed by
-   * its organization, since the folder segment moves within one vault rather than between them.
-   */
-  private vaultKey(scope: VaultScope): string | null {
-    switch (scope.type) {
-      case VaultScopeType.MyVault:
-        return "my-vault";
-      case VaultScopeType.Organization:
-        return scope.organizationId;
-      default:
-        return null;
-    }
+    this.scope$.next(scope ?? ALL_ITEMS_SCOPE);
   }
 
   /**
