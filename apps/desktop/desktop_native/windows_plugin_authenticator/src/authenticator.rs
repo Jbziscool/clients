@@ -127,7 +127,13 @@ impl<C: IpcConnector> PluginAuthenticator for BitwardenPluginAuthenticator<C> {
 
         self.wait_for_connected_client(&client)?;
 
-        present_window(client.as_ref())?;
+        let is_unlocked = client
+            .get_lock_status(Duration::from_secs(3))
+            .is_ok_and(|response| response.is_unlocked);
+        let needs_ui = needs_ui_for_registration(is_unlocked);
+        if needs_ui {
+            present_window(client.as_ref())?;
+        }
 
         let (cancel_tx, cancel_rx) = mpsc::channel();
         let transaction_id = request.transaction_id;
@@ -229,6 +235,14 @@ impl<C: IpcConnector> PluginAuthenticator for BitwardenPluginAuthenticator<C> {
                 Ok(PluginLockStatus::PluginLocked)
             })
     }
+}
+
+/// Returns true when the authenticator needs to show UI for a get-assertion
+/// request: either because the vault is locked or because the caller hasn't
+/// pre-selected a single credential (which requires a picker dialog).
+/// The vault
+fn needs_ui_for_registration(is_unlocked: bool) -> bool {
+    !is_unlocked
 }
 
 /// Returns true when the authenticator needs to show UI for a get-assertion
@@ -679,10 +693,6 @@ mod tests {
         assert!(matches!(status, PluginLockStatus::PluginLocked));
     }
 
-    // -----------------------------------------------------------------------
-    // needs_ui_for_assertion tests
-    // -----------------------------------------------------------------------
-
     #[test]
     fn unlocked_vault_with_one_credential_skips_ui() {
         assert!(!needs_ui_for_assertion(true, 1));
@@ -693,6 +703,7 @@ mod tests {
         assert!(needs_ui_for_assertion(false, 1));
         assert!(needs_ui_for_assertion(false, 0));
         assert!(needs_ui_for_assertion(false, 2));
+        assert!(needs_ui_for_registration(false));
     }
 
     #[test]
