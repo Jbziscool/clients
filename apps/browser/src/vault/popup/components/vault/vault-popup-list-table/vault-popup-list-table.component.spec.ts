@@ -138,6 +138,13 @@ describe("VaultPopupListTableComponent", () => {
   const vaultPopupListTableFiltersService = {
     restoreFilters$: jest.fn().mockReturnValue(of({})),
     saveFilters: jest.fn(),
+    clearVaultScopedFilters: jest.fn(),
+    selectedFilters$: of({
+      cipherType: null,
+      organization: [] as string[],
+      collection: [] as string[],
+      folder: [] as string[],
+    }),
     selectedOrganizations: signal<Organization[]>([]),
     cipherTypes$: cipherTypes$.asObservable(),
     organizations$: organizations$.asObservable(),
@@ -569,6 +576,40 @@ describe("VaultPopupListTableComponent", () => {
         fixture.detectChanges();
 
         expect(component["collectionOptions"]()).toEqual([]);
+      });
+
+      /**
+       * The chips select things that belong to one vault, so a move between vaults leaves them
+       * naming nothing the new scope offers. The controls hold their own values, so clearing the
+       * cache is not enough — a chip left set keeps narrowing the rows, and the selection shows up
+       * again on returning to All items.
+       */
+      describe("clearing chips on a vault switch", () => {
+        it("drops the cached vault-scoped selections", () => {
+          listTableSvc.setScope({ type: VaultScopeType.MyVault });
+          fixture.detectChanges();
+
+          expect(vaultPopupListTableFiltersService.clearVaultScopedFilters).toHaveBeenCalled();
+        });
+
+        it("does not drop them when the scope stays on the same vault", () => {
+          listTableSvc.setScope({ type: VaultScopeType.MyVault });
+          fixture.detectChanges();
+          vaultPopupListTableFiltersService.clearVaultScopedFilters.mockClear();
+
+          listTableSvc.setScope({ type: VaultScopeType.MyVault });
+          fixture.detectChanges();
+
+          expect(vaultPopupListTableFiltersService.clearVaultScopedFilters).not.toHaveBeenCalled();
+        });
+
+        /** Trash and the Archive span every vault, so moving to them is not a vault switch. */
+        it("does not drop them when moving to the archive", () => {
+          listTableSvc.setScope({ type: VaultScopeType.Archive });
+          fixture.detectChanges();
+
+          expect(vaultPopupListTableFiltersService.clearVaultScopedFilters).not.toHaveBeenCalled();
+        });
       });
 
       it("keeps every organization's shared folders when unscoped", () => {

@@ -8,6 +8,7 @@ import {
   Component,
   computed,
   DestroyRef,
+  effect,
   inject,
   Injector,
   signal,
@@ -87,6 +88,13 @@ import { ItemMoreOptionsComponent } from "../item-more-options/item-more-options
 function flattenOptions<T>(options: ChipFilterOption<T>[]): ChipFilterOption<T>[] {
   return options.flatMap((option) => [option, ...flattenOptions(option.children ?? [])]);
 }
+
+/**
+ * The chips that select a vault or something inside one, so a move between vaults invalidates
+ * them. The type chip is absent: item types span vaults, so that selection still means what it
+ * did after the switch.
+ */
+const VAULT_SCOPED_FILTER_KEYS = ["organization", "collection", "folder"];
 
 @Component({
   selector: "app-vault-popup-list-table",
@@ -461,6 +469,28 @@ export class VaultPopupListTableComponent {
           this.selectedOrgs.set(orgs);
           this.validateOrgChips(table, values);
         });
+
+      // Clear the vault-scoped chips when the page moves to a different vault. The service drops
+      // them from the cache, but the controls hold their own values, so a chip left set would keep
+      // narrowing the rows under a vault whose options no longer include it — and the user would
+      // see the selection again on returning to All items.
+      let previousVaultKey = this.listTableService.scopedVaultKey();
+      effect(
+        () => {
+          const vaultKey = this.listTableService.scopedVaultKey();
+          if (vaultKey === previousVaultKey) {
+            return;
+          }
+          previousVaultKey = vaultKey;
+
+          for (const control of table.filterControls()) {
+            if (VAULT_SCOPED_FILTER_KEYS.includes(control.key())) {
+              control.setValue(undefined);
+            }
+          }
+        },
+        { injector: this.injector },
+      );
     });
   }
 

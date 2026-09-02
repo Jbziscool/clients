@@ -151,6 +151,28 @@ export class VaultPopupListTableFiltersService {
   }
 
   /**
+   * Drops the chip selections that name a vault or something inside one, for a switch to a
+   * different vault.
+   *
+   * The vault, shared folder, and folder chips all select things that belong to one vault, so a
+   * selection made under a different scope names nothing the new one offers — the chip is either
+   * gone (vault) or re-populated with the new vault's own options (shared folder, folder), and the
+   * stale selection would sit in the cache narrowing the count to nothing while the list, which
+   * never received it, shows every item.
+   *
+   * The type chip is kept: item types span vaults, so that selection still means what it did.
+   */
+  clearVaultScopedFilters(): void {
+    this.cachedFilters.set({
+      organizationIds: [],
+      collectionIds: [],
+      folderIds: [],
+      cipherType: this.cachedFilters().cipherType ?? null,
+    });
+    this.selectedOrganizations.set([]);
+  }
+
+  /**
    * Resolves the cached filter state back to chip-selectable ids, emitting once.
    *
    * Call this after the table's filter chips are registered to seed them from the

@@ -15,6 +15,7 @@ import { CipherViewLikeUtils } from "@bitwarden/common/vault/utils/cipher-view-l
 import { DialogService } from "@bitwarden/components";
 import {
   DecryptionFailureDialogComponent,
+  NO_FOLDER,
   PasswordRepromptService,
   VaultScopeType,
 } from "@bitwarden/vault";
@@ -124,7 +125,18 @@ describe("VaultPopupListTableService", () => {
         },
         {
           provide: VaultPopupListTableFiltersService,
-          useValue: { selectedFilters$: selectedFilters$.asObservable() },
+          useValue: {
+            selectedFilters$: selectedFilters$.asObservable(),
+            // Mirrors the real service: clearing drops the vault-scoped selections and keeps the
+            // type, so a scope switch in these tests moves the stream the count reads.
+            clearVaultScopedFilters: () =>
+              selectedFilters$.next({
+                ...selectedFilters$.value,
+                organization: [],
+                collection: [],
+                folder: [],
+              }),
+          },
         },
       ],
     });
@@ -206,6 +218,78 @@ describe("VaultPopupListTableService", () => {
       });
 
       /**
+       * The vault, shared folder, and folder chips all select something that belongs to one vault,
+       * so switching vaults leaves the selection naming nothing the new scope offers. It is
+       * dropped on the switch rather than left in the cache narrowing the count to nothing while
+       * the list, which never received it, shows every item.
+       */
+      describe("switching vaults", () => {
+        const COLLECTION_ID = "33333333-3333-4333-8333-333333333333";
+
+        beforeEach(() => {
+          selectedFilters$.next({
+            cipherType: null,
+            organization: [],
+            collection: [COLLECTION_ID],
+            folder: [],
+          });
+        });
+
+        it("drops a shared-folder selection when scoping to the personal vault", async () => {
+          service.setScope({ type: VaultScopeType.MyVault });
+
+          expect(await firstValueFrom(service.itemCount$)).toBe(1);
+        });
+
+        it("drops a shared-folder selection when scoping to an organization", async () => {
+          service.setScope({
+            type: VaultScopeType.Organization,
+            organizationId: ORG_ID as OrganizationId,
+          });
+
+          expect(await firstValueFrom(service.itemCount$)).toBe(1);
+        });
+
+        it("drops a folder selection too", async () => {
+          selectedFilters$.next({
+            cipherType: null,
+            organization: [],
+            collection: [],
+            folder: [NO_FOLDER],
+          });
+
+          service.setScope({ type: VaultScopeType.MyVault });
+
+          expect(await firstValueFrom(service.itemCount$)).toBe(1);
+        });
+
+        it("keeps a type selection, which spans every vault", async () => {
+          filteredCiphers$.next([
+            makeCipher({ id: "personal", organizationId: null, type: CipherType.Login }),
+            makeCipher({ id: "personal-card", organizationId: null, type: CipherType.Card }),
+            makeCipher({ id: "org", organizationId: ORG_ID, type: CipherType.Login }),
+          ]);
+          selectedFilters$.next({
+            cipherType: CipherType.Card,
+            organization: [],
+            collection: [],
+            folder: [],
+          });
+
+          service.setScope({ type: VaultScopeType.MyVault });
+
+          expect(await firstValueFrom(service.itemCount$)).toBe(1);
+        });
+
+        /** Trash and the Archive span every vault, so they are not a vault switch. */
+        it("keeps the selection when moving to the archive", () => {
+          service.setScope({ type: VaultScopeType.Archive });
+
+          expect(selectedFilters$.value.collection).toEqual([COLLECTION_ID]);
+        });
+      });
+
+      /**
        * A scoped vault drops the organization chip, but the selection made before the switch stays
        * cached. Applying it would put the count below the list the table renders, which never saw
        * it — the mirror of the contradiction the chip narrowing fixes.
@@ -247,11 +331,16 @@ describe("VaultPopupListTableService", () => {
           expect(await firstValueFrom(service.itemCount$)).toBe(1);
         });
 
-        it("applies it again once the scope clears", async () => {
+        /**
+         * The selection is dropped on the way out rather than parked for the return: a vault chip
+         * the user cannot see is one they cannot clear, so coming back to All items under a filter
+         * they no longer remember setting would be its own contradiction.
+         */
+        it("does not come back when the scope clears", async () => {
           service.setScope({ type: VaultScopeType.MyVault });
           service.setScope(null);
 
-          expect(await firstValueFrom(service.itemCount$)).toBe(1);
+          expect(await firstValueFrom(service.itemCount$)).toBe(2);
         });
       });
     });

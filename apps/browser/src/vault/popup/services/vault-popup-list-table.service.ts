@@ -121,9 +121,51 @@ export class VaultPopupListTableService {
   /** The scope currently narrowing the rows. Read by the table to gate its organization chip. */
   readonly vaultScope = toSignal(this.scope$, { initialValue: ALL_ITEMS_SCOPE });
 
-  /** Narrows the vault to `scope`; {@link ALL_ITEMS_SCOPE} shows every vault's items. */
+  /**
+   * The vault the scope narrows to, as a comparable key — `null` for All items and for the
+   * vault-spanning Trash and Archive scopes.
+   *
+   * Read by the table to notice a move between vaults, which invalidates the chips that select
+   * something belonging to one. Distinct from {@link vaultScope}, which changes for a
+   * shared-folder drill-in within the same vault too.
+   */
+  readonly scopedVaultKey = toSignal(this.scope$.pipe(map((scope) => this.vaultKey(scope))), {
+    initialValue: null as string | null,
+  });
+
+  /**
+   * Narrows the vault to `scope`; {@link ALL_ITEMS_SCOPE} shows every vault's items.
+   *
+   * Switching to a different vault drops the chip selections that name a vault or something
+   * inside one — see {@link VaultPopupListTableFiltersService.clearVaultScopedFilters}. Only an
+   * actual change clears them: this is called on every scope publish, including the first, and
+   * clearing on a re-publish of the same vault would discard the selections just restored from
+   * the cache.
+   */
   setScope(scope: VaultScope | null): void {
-    this.scope$.next(scope ?? ALL_ITEMS_SCOPE);
+    const next = scope ?? ALL_ITEMS_SCOPE;
+
+    if (this.vaultKey(next) !== this.vaultKey(this.scope$.value)) {
+      this.listFiltersService.clearVaultScopedFilters();
+    }
+
+    this.scope$.next(next);
+  }
+
+  /**
+   * The vault a scope narrows to, as a comparable key. Trash and the Archive span every vault, so
+   * they name no vault of their own and leave the chips alone; a shared-folder drill-in is keyed by
+   * its organization, since the folder segment moves within one vault rather than between them.
+   */
+  private vaultKey(scope: VaultScope): string | null {
+    switch (scope.type) {
+      case VaultScopeType.MyVault:
+        return "my-vault";
+      case VaultScopeType.Organization:
+        return scope.organizationId;
+      default:
+        return null;
+    }
   }
 
   /**
@@ -205,9 +247,7 @@ export class VaultPopupListTableService {
    * table itself and never reaches this stream, so a count taken straight off the rows would sit
    * above a list the chips had narrowed and contradict it.
    *
-   * Only the chips the current scope still offers are applied — see {@link scopedFilters}. A
-   * selection cached under a different vault outlives the chip that made it, and applying one the
-   * table has dropped would put the count below its own list rather than above it.
+   * Only the chips the current scope still offers are applied — see {@link scopedFilters}.
    */
   readonly itemCount$: Observable<number> = combineLatest([
     this.rows$,
@@ -231,14 +271,10 @@ export class VaultPopupListTableService {
   /**
    * The cached chip selection, less the chips the current scope has taken away.
    *
-   * A scoped vault drops the organization chip, so a vault selection cached under a different
-   * scope has no control left to hold it and never reaches the table's own filtering. The scope
-   * already narrows the rows to one vault, so re-applying an organization id here could only
-   * contradict it.
-   *
-   * The shared-folder and folder chips narrow to the scoped vault's own options rather than
-   * disappearing, so their cached values are left alone: the table still holds them, and a value
-   * naming a folder outside the scope is the table's to validate.
+   * A scoped vault renders no organization chip, so there is no vault selection for the table to
+   * apply and the count must not invent one — the scope already narrows the rows to that vault.
+   * {@link setScope} clears the vault-scoped selections on a switch, so this guards the window
+   * before that lands as well as a scope arriving with filters already cached.
    */
   private scopedFilters(
     selected: {
