@@ -7,6 +7,30 @@ paths:
 
 Distilled from [Web Code Style — TypeScript](https://contributing.bitwarden.com/contributing/code-style/web/typescript).
 
+## Comments
+
+Keep docblocks to one line. Add a second only for a constraint that cannot be recovered from the
+code — a silent failure mode, a regression's cause, a reason the obvious approach doesn't work.
+
+Don't restate the signature, narrate how the code was arrived at, or explain what the next line
+does. A test's docblock says why the assertion matters, not what it asserts — the test name already
+does that.
+
+Keep a docblock attached to the declaration it describes. When inserting a member, put it below the
+preceding docblock's declaration, never between that docblock and its target.
+
+Non-obvious causes that don't fit in a line belong in the commit message, where they stay findable
+without crowding the code.
+
+```typescript
+/** Gated on `organizations$`, which is empty for a lone vault, rather than re-deriving it. */
+
+/**
+ * Regression: keyed to `aria-expanded`, which the directive clears without change detection,
+ * so under `OnPush` the open styling survived the close.
+ */
+```
+
 ## Boolean Naming
 
 Use the base word. Add `is` / `has` / `can` prefixes only when meaning cannot be conveyed without them — for example, when the unprefixed name would collide with another property.
