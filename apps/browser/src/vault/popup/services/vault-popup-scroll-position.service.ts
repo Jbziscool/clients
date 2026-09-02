@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { NavigationEnd, Router } from "@angular/router";
 import { filter, fromEvent, Subscription } from "rxjs";
 
+import { ScrollLayoutService } from "@bitwarden/components";
 import { VAULT_BASE_ROUTE } from "@bitwarden/vault";
 
 @Injectable({
@@ -10,6 +11,7 @@ import { VAULT_BASE_ROUTE } from "@bitwarden/vault";
 })
 export class VaultPopupScrollPositionService {
   private router = inject(Router);
+  private readonly scrollLayout = inject(ScrollLayoutService);
 
   /** Path of the vault screen */
   private readonly vaultPath = inject(VAULT_BASE_ROUTE);
@@ -19,6 +21,12 @@ export class VaultPopupScrollPositionService {
 
   /** Subscription associated with the virtual scroll element. */
   private scrollSubscription: Subscription | null = null;
+
+  /**
+   * Whether a restore is in flight, during which scroll events belong to the restore rather than
+   * to the user — see {@link start}.
+   */
+  private restoring = false;
 
   constructor() {
     this.router.events
@@ -33,22 +41,42 @@ export class VaultPopupScrollPositionService {
 
   /** Scrolls the user to the stored scroll position and starts tracking scroll of the page. */
   start(scrollElement: HTMLElement) {
-    if (this.hasScrollPosition()) {
+    const restoring = this.hasScrollPosition();
+    const target = this.scrollPosition;
+
+    if (restoring) {
+      // Declare that the page is returning to a position it already held, so chrome that collapses
+      // on scroll arrives collapsed instead of animating out of the way after the fact. The restore
+      // reaches the element as one programmatic jump, which scroll-direction tracking deliberately
+      // does not read as intent, so the state has to be declared rather than inferred.
+      this.scrollLayout.restoredScrolled.set(true);
+
       // Use `setTimeout` to scroll after rendering is complete
       setTimeout(() => {
-        scrollElement.scrollTo({ top: this.scrollPosition!, behavior: "instant" });
+        scrollElement.scrollTo({ top: target!, behavior: "instant" });
+        // Release the guard only once the restore has been applied, so the events it provokes are
+        // attributed to the restore rather than to the user.
+        setTimeout(() => {
+          this.restoring = false;
+        });
       });
     }
 
     this.scrollSubscription?.unsubscribe();
 
-    // Skip the first scroll event to avoid settings the scroll from the above `scrollTo` call
-    let skipped = false;
+    // Ignore scroll events until the restore above has settled. Counting events does not work: a
+    // restore can provoke more than one — the browser clamps `scrollTop` when the content is
+    // shorter than it was when the position was saved — and treating those as the user's own
+    // scrolling would overwrite the stored position with wherever the restore happened to land.
+    this.restoring = restoring;
+
     this.scrollSubscription = fromEvent(scrollElement, "scroll").subscribe(() => {
-      if (!skipped) {
-        skipped = true;
+      if (this.restoring) {
         return;
       }
+      // The restore has been handed back to the user: from here the bar follows their scrolling
+      // again, so the declared state has to give way to the tracked one.
+      this.scrollLayout.restoredScrolled.set(false);
       this.scrollPosition = scrollElement.scrollTop;
     });
   }
@@ -57,6 +85,12 @@ export class VaultPopupScrollPositionService {
   stop(reset?: true) {
     this.scrollSubscription?.unsubscribe();
     this.scrollSubscription = null;
+    // A stop mid-restore must not leave the guard raised, or the next listener would ignore the
+    // user's scrolling entirely.
+    this.restoring = false;
+    // The declared state belongs to the page being restored. Leaving it set would collapse the
+    // next page's bar before that page has been scrolled at all.
+    this.scrollLayout.restoredScrolled.set(false);
 
     if (reset) {
       this.scrollPosition = null;

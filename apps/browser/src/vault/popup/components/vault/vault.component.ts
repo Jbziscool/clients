@@ -350,6 +350,19 @@ export class VaultComponent implements OnInit, OnDestroy {
       });
   }
 
+  /**
+   * Tracks and restores the scroll position, following the page's scroll region as it changes.
+   *
+   * Deliberately not `take(1)`. The list table registers its own scrolling body as the region, but
+   * only once its rows render — after loading finishes. `popup-page`'s region is registered before
+   * that, so the first emission to pass this filter names an element that wraps the table exactly
+   * and never scrolls. Latching it would attach the listener to an element that emits no scroll
+   * events and cannot be scrolled back. Following the ref instead re-attaches onto the body once
+   * the table claims the region.
+   *
+   * `distinctUntilChanged` keeps an unrelated emission — a filter change, or loading toggling —
+   * from restarting the listener on an element it is already tracking.
+   */
   private readonly _scrollPositionEffect = effect((onCleanup) => {
     const sub = combineLatest([
       this.scrollLayoutService.scrollableRef$,
@@ -357,12 +370,13 @@ export class VaultComponent implements OnInit, OnDestroy {
       this.loading$,
     ])
       .pipe(
-        filter(([ref, _filters, loading]) => !!ref && !loading),
-        take(1),
+        filter(([ref, _filters, loading]) => !!ref?.nativeElement && !loading),
+        map(([ref]) => ref!.nativeElement),
+        distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe(([ref]) => {
-        this.vaultScrollPositionService.start(ref!.nativeElement);
+      .subscribe((scrollElement) => {
+        this.vaultScrollPositionService.start(scrollElement);
       });
 
     onCleanup(() => sub.unsubscribe());

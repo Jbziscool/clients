@@ -1,7 +1,9 @@
+import { effect } from "@angular/core";
 import { fakeAsync, TestBed, tick } from "@angular/core/testing";
 import { NavigationEnd, Router } from "@angular/router";
 import { Subject, Subscription } from "rxjs";
 
+import { ScrollLayoutService } from "@bitwarden/components";
 import { VAULT_BASE_ROUTE } from "@bitwarden/vault";
 
 import { VaultPopupScrollPositionService } from "./vault-popup-scroll-position.service";
@@ -158,19 +160,175 @@ describe("VaultPopupScrollPositionService", () => {
         expect(unsubscribe).toHaveBeenCalled();
       });
 
-      it("stores scrollTop on subsequent scroll events (skips first)", fakeAsync(() => {
+      it("keeps the stored position when a restore is clamped to a shorter list", fakeAsync(() => {
+        // Switching to a vault with fewer items cannot honor the saved offset, so the browser
+        // clamps `scrollTop` and fires a scroll event of its own.
+        const clamp = 40;
+        ((scrollElement as any).scrollTo as jest.Mock).mockImplementation(
+          (opts: { top?: number }) => {
+            (scrollElement as any).scrollTop = Math.min(opts?.top ?? 0, clamp);
+            scrollElement.dispatchEvent(new Event("scroll"));
+          },
+        );
+        service["scrollPosition"] = 234;
+
+        service.start(scrollElement);
+        tick();
+
+        expect(service["scrollPosition"]).toBe(234);
+      }));
+
+      it("tracks the user's scrolling again once a restore has settled", fakeAsync(() => {
+        service["scrollPosition"] = 234;
+
+        service.start(scrollElement);
+        tick();
+
+        (scrollElement as any).scrollTop = 300;
+        scrollElement.dispatchEvent(new Event("scroll"));
+        tick();
+
+        expect(service["scrollPosition"]).toBe(300);
+      }));
+
+      it("re-targets onto a replaced scroll element", fakeAsync(() => {
+        // Navigating between vaults rebuilds `popup-page`, so the element the listener was
+        // tracking is detached and a new one takes its place.
+        service["scrollPosition"] = 234;
+        service.start(scrollElement);
+        tick();
+
+        const replacement = document.createElement("div");
+        (replacement as any).scrollTo = jest.fn();
+        (replacement as any).scrollTop = 0;
+
+        service.start(replacement);
+        tick();
+
+        expect((replacement as any).scrollTo).toHaveBeenCalledWith({
+          behavior: "instant",
+          top: 234,
+        });
+
+        // The detached element must no longer feed the stored position.
+        (scrollElement as any).scrollTop = 999;
+        scrollElement.dispatchEvent(new Event("scroll"));
+        tick();
+
+        expect(service["scrollPosition"]).toBe(234);
+
+        // The live one does.
+        (replacement as any).scrollTop = 150;
+        replacement.dispatchEvent(new Event("scroll"));
+        tick();
+
+        expect(service["scrollPosition"]).toBe(150);
+      }));
+
+      it("declares the restored-scrolled state before applying the offset", fakeAsync(() => {
+        // Collapsing chrome comes out of the scroll viewport, so the bar has to be collapsed
+        // before `scrollTo` runs or the offset lands against a shorter viewport.
+        const scrollLayout = TestBed.inject(ScrollLayoutService);
+        const order: string[] = [];
+
+        ((scrollElement as any).scrollTo as jest.Mock).mockImplementation(() =>
+          order.push("scrollTo"),
+        );
+        TestBed.runInInjectionContext(() => {
+          effect(() => {
+            if (scrollLayout.restoredScrolled()) {
+              order.push("collapsed");
+            }
+          });
+        });
+
+        service["scrollPosition"] = 234;
+        service.start(scrollElement);
+        TestBed.flushEffects();
+        tick();
+
+        expect(order).toEqual(["collapsed", "scrollTo"]);
+      }));
+
+      it("hands the bar back to scroll tracking once the user scrolls", fakeAsync(() => {
+        const scrollLayout = TestBed.inject(ScrollLayoutService);
+
+        service["scrollPosition"] = 234;
+        service.start(scrollElement);
+        tick();
+
+        expect(scrollLayout.restoredScrolled()).toBe(true);
+
+        (scrollElement as any).scrollTop = 300;
+        scrollElement.dispatchEvent(new Event("scroll"));
+        tick();
+
+        expect(scrollLayout.restoredScrolled()).toBe(false);
+      }));
+
+      it("does not declare the state when there is nothing to restore", fakeAsync(() => {
+        const scrollLayout = TestBed.inject(ScrollLayoutService);
+        service["scrollPosition"] = null;
+
+        service.start(scrollElement);
+        tick();
+
+        expect(scrollLayout.restoredScrolled()).toBe(false);
+      }));
+
+      it("clears the declared state on stop", fakeAsync(() => {
+        const scrollLayout = TestBed.inject(ScrollLayoutService);
+
+        service["scrollPosition"] = 234;
+        service.start(scrollElement);
+        tick();
+
+        service.stop();
+
+        expect(scrollLayout.restoredScrolled()).toBe(false);
+      }));
+
+      it("does not leave the restore guard raised after stop", fakeAsync(() => {
+        service["scrollPosition"] = 234;
+
+        service.start(scrollElement);
+        service.stop();
+        tick();
+
+        service.start(scrollElement);
+        tick();
+
+        (scrollElement as any).scrollTop = 321;
+        scrollElement.dispatchEvent(new Event("scroll"));
+        tick();
+
+        expect(service["scrollPosition"]).toBe(321);
+      }));
+
+      it("stores the first scroll when there was nothing to restore", fakeAsync(() => {
+        // With no stored position there is no `scrollTo`, so the first event is the user's own.
+        // Discarding it left the position null forever: leaving the vault for a cipher and coming
+        // back restored nothing, because nothing had been saved.
         service["scrollPosition"] = null;
 
         service.start(scrollElement);
 
-        // First scroll event is intentionally ignored (equivalent to old skip(1)).
         (scrollElement as any).scrollTop = 111;
         scrollElement.dispatchEvent(new Event("scroll"));
         tick();
 
-        expect(service["scrollPosition"]).toBeNull();
+        expect(service["scrollPosition"]).toBe(111);
+      }));
 
-        // Second scroll event should persist.
+      it("keeps storing scrollTop on later scroll events", fakeAsync(() => {
+        service["scrollPosition"] = null;
+
+        service.start(scrollElement);
+
+        (scrollElement as any).scrollTop = 111;
+        scrollElement.dispatchEvent(new Event("scroll"));
+        tick();
+
         (scrollElement as any).scrollTop = 455;
         scrollElement.dispatchEvent(new Event("scroll"));
         tick();
