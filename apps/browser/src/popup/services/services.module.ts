@@ -908,12 +908,6 @@ const safeProviders: SafeProvider[] = [
     deps: [],
   }),
   safeProvider({
-    // The popup mounts the vault under its tab shell rather than at the root, so every scope URL
-    // the shared vault code builds is rebased onto that path.
-    //
-    // `vaultScopeGuard` also injects `CollectionService`, which reaches the popup injector through
-    // `JslibServicesModule`. The popup route declares no `:collectionId`, so the guard never reads
-    // it — but the injection is unconditional, so the guard would throw without it.
     provide: VAULT_BASE_ROUTE as SafeInjectionToken<string>,
     useValue: "/tabs/vault",
   }),
