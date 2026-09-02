@@ -19,6 +19,18 @@ import { filter, fromEvent, Observable, switchMap } from "rxjs";
 export class ScrollLayoutService {
   readonly scrollableRef = signal<ElementRef<HTMLElement> | null>(null);
   scrollableRef$ = toObservable(this.scrollableRef);
+
+  /**
+   * Whether the page is being restored to a scroll position it held earlier, so chrome that
+   * collapses on scroll should start collapsed rather than animate out of the way afterwards.
+   *
+   * A restore re-establishes a state the user already scrolled to, but it reaches the element as
+   * one programmatic jump, which {@link scrollDirection} deliberately re-anchors without reading
+   * as intent — so the state has to be declared rather than inferred.
+   *
+   * Whoever restores the position sets this, and clears it once the user scrolls again.
+   */
+  readonly restoredScrolled = signal(false);
 }
 
 /**

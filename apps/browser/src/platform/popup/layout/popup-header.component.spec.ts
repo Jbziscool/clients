@@ -271,6 +271,39 @@ describe("PopupHeaderComponent", () => {
 
         expect(collapsed()).toBe(false);
       });
+
+      describe("a restored scroll position", () => {
+        /** The transition classes are what animate the collapse; without them it arrives collapsed. */
+        const animated = () => titleBar().className.includes("tw-transition-");
+
+        it("collapses the bar", () => {
+          TestBed.inject(ScrollLayoutService).restoredScrolled.set(true);
+          fixture.detectChanges();
+
+          expect(collapsed()).toBe(true);
+        });
+
+        it("arrives collapsed rather than animating into it", () => {
+          TestBed.inject(ScrollLayoutService).restoredScrolled.set(true);
+          fixture.detectChanges();
+
+          expect(collapsed()).toBe(true);
+          expect(animated()).toBe(false);
+        });
+
+        it("animates again once the user takes over the scrolling", async () => {
+          const scrollLayout = TestBed.inject(ScrollLayoutService);
+          scrollLayout.restoredScrolled.set(true);
+          fixture.detectChanges();
+
+          // The position service hands the bar back on the user's first scroll.
+          scrollLayout.restoredScrolled.set(false);
+          await scrollTo(200);
+
+          expect(collapsed()).toBe(true);
+          expect(animated()).toBe(true);
+        });
+      });
     });
 
     it("does not hide the title bar when the flag is off", async () => {

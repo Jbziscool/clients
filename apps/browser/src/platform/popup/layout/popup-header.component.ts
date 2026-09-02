@@ -120,9 +120,18 @@ export class PopupHeaderComponent {
     this.titleBarSuppressed() ? "side-nav" : "primaryGhost",
   );
 
-  /** Collapsed by scroll, unlike `titleBarSuppressed` — the bar is still there and focusable. */
+  /**
+   * Collapsed by scroll, unlike `titleBarSuppressed` — the bar is still there and focusable.
+   *
+   * A restored scroll position also collapses it. The restore arrives as one programmatic jump,
+   * which `scrollDirection` re-anchors without reading as intent, so the bar would otherwise
+   * return expanded onto a page the user had already scrolled away from the top of.
+   */
   protected readonly titleBarHidden = computed(
-    () => this.vfo1Enabled() && !this.hideTitleBar() && this.scrollDirection() === "down",
+    () =>
+      this.vfo1Enabled() &&
+      !this.hideTitleBar() &&
+      (this.scrollDirection() === "down" || this.scrollLayout.restoredScrolled()),
   );
 
   /**
@@ -217,7 +226,11 @@ export class PopupHeaderComponent {
     // TODO: remove with the VFO1Foundation flag — move these three back into the base list above.
     // See `titleBarAnimated`: declaring the transition before the bar collapses would animate the
     // padding and border that arrive with the flag rather than the collapse.
-    if (this.titleBarAnimated()) {
+    //
+    // A restore is excluded for the same reason it collapses the bar at all: it re-establishes a
+    // state the page already held, so the bar should arrive collapsed rather than animate into it
+    // while the user watches the page they returned to settle.
+    if (this.titleBarAnimated() && !this.scrollLayout.restoredScrolled()) {
       classes.push(
         "motion-safe:tw-transition-[grid-template-rows,padding]",
         "tw-duration-200",
