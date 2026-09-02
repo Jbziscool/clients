@@ -683,18 +683,14 @@ export class BitTableV2Component<T = unknown, S extends string = never, F = Reco
 
   /**
    * The element the body scrolls in — the virtual-scroll viewport or the plain overflow container,
-   * whichever the template rendered. Only one exists at a time, and it is replaced when the table
-   * switches between them (virtualized to not, or either to the empty state).
+   * whichever the template rendered
    */
   private readonly scrollBody = viewChild<ElementRef<HTMLElement> | CdkVirtualScrollViewport>(
     "scrollBody",
   );
 
   /**
-   * Publishes the scrolling body as the page's scroll region while {@link scrollLayoutHost} is
-   * set, and hands the region back when the table stops being it — the body is swapped out, the
-   * table goes empty, or the table is destroyed. Registering the live element rather than a
-   * captured one keeps the region correct across those swaps.
+   * Publishes the scrolling body as the page's scroll region while {@link scrollLayoutHost} is set.
    */
   private readonly _scrollLayoutHostEffect = effect((onCleanup) => {
     if (!this.scrollLayoutHost()) {

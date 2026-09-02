@@ -41,9 +41,7 @@ import { VAULT_BASE_ROUTE } from "./vault-base-route";
  * that user, so an account switch mid-navigation cannot decide membership from one account's vaults
  * and the folder from another's collections.
  *
- * Redirects are built on {@link VAULT_BASE_ROUTE} rather than a literal path, so the clients that
- * mount the vault under a shell of their own — the extension popup, under `/tabs/vault` — share
- * this guard instead of keeping a twin of the membership rules.
+ * Redirects are built on {@link VAULT_BASE_ROUTE} rather than a literal path
  */
 export const vaultScopeGuard: CanActivateFn = async (route) => {
   const router = inject(Router);
