@@ -287,6 +287,44 @@ describe("VaultPopupListTableService", () => {
 
           expect(selectedFilters$.value.collection).toEqual([COLLECTION_ID]);
         });
+
+        /**
+         * All items widens rather than narrowing, so nothing selected under it has stopped
+         * existing and every chip that offered it is back. Only moving *into* a single vault
+         * invalidates a selection.
+         *
+         * Selects under the scoped vault, so the assertion covers the widening transition itself
+         * rather than a no-op re-publish of the scope the service already holds.
+         */
+        it("keeps the selection when widening to All items", () => {
+          service.setScope({ type: VaultScopeType.MyVault });
+          selectedFilters$.next({
+            cipherType: null,
+            organization: [],
+            collection: [COLLECTION_ID],
+            folder: [],
+          });
+
+          service.setScope(null);
+
+          expect(selectedFilters$.value.collection).toEqual([COLLECTION_ID]);
+        });
+
+        /** Leaving and re-entering a vault still clears, so the guard is on widening only. */
+        it("clears again on re-entering a vault via All items", () => {
+          service.setScope({ type: VaultScopeType.MyVault });
+          service.setScope(null);
+          selectedFilters$.next({
+            cipherType: null,
+            organization: [],
+            collection: [COLLECTION_ID],
+            folder: [],
+          });
+
+          service.setScope({ type: VaultScopeType.MyVault });
+
+          expect(selectedFilters$.value.collection).toEqual([]);
+        });
       });
 
       /**
@@ -331,11 +369,7 @@ describe("VaultPopupListTableService", () => {
           expect(await firstValueFrom(service.itemCount$)).toBe(1);
         });
 
-        /**
-         * The selection is dropped on the way out rather than parked for the return: a vault chip
-         * the user cannot see is one they cannot clear, so coming back to All items under a filter
-         * they no longer remember setting would be its own contradiction.
-         */
+        /** Dropped entering the vault, so there is nothing left to come back on the way out. */
         it("does not come back when the scope clears", async () => {
           service.setScope({ type: VaultScopeType.MyVault });
           service.setScope(null);

@@ -136,16 +136,20 @@ export class VaultPopupListTableService {
   /**
    * Narrows the vault to `scope`; {@link ALL_ITEMS_SCOPE} shows every vault's items.
    *
-   * Switching to a different vault drops the chip selections that name a vault or something
-   * inside one — see {@link VaultPopupListTableFiltersService.clearVaultScopedFilters}. Only an
-   * actual change clears them: this is called on every scope publish, including the first, and
-   * clearing on a re-publish of the same vault would discard the selections just restored from
-   * the cache.
+   * Moving into a different single vault drops the chip selections that name a vault or something
+   * inside one — see {@link VaultPopupListTableFiltersService.clearVaultScopedFilters}. Widening
+   * back out to All items keeps them: a selection made there names something that still exists,
+   * and the chips that offered it are all back.
+   *
+   * Only a move between vaults clears them. This is called on every scope publish, including the
+   * first, so clearing on a re-publish of the same vault would discard the selections just
+   * restored from the cache.
    */
   setScope(scope: VaultScope | null): void {
     const next = scope ?? ALL_ITEMS_SCOPE;
+    const nextKey = this.vaultKey(next);
 
-    if (this.vaultKey(next) !== this.vaultKey(this.scope$.value)) {
+    if (nextKey != null && nextKey !== this.vaultKey(this.scope$.value)) {
       this.listFiltersService.clearVaultScopedFilters();
     }
 

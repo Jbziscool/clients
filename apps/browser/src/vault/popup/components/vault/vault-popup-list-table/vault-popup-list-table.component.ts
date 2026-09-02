@@ -470,10 +470,10 @@ export class VaultPopupListTableComponent {
           this.validateOrgChips(table, values);
         });
 
-      // Clear the vault-scoped chips when the page moves to a different vault. The service drops
-      // them from the cache, but the controls hold their own values, so a chip left set would keep
-      // narrowing the rows under a vault whose options no longer include it — and the user would
-      // see the selection again on returning to All items.
+      // Clear the vault-scoped chips when the page moves into a different vault, matching the
+      // condition the service clears the cache on. The controls hold their own values, so a chip
+      // left set would keep narrowing the rows under a vault whose options no longer include it.
+      // Widening back out to All items keeps them: nothing selected there has stopped existing.
       let previousVaultKey = this.listTableService.scopedVaultKey();
       effect(
         () => {
@@ -481,7 +481,12 @@ export class VaultPopupListTableComponent {
           if (vaultKey === previousVaultKey) {
             return;
           }
+          const movedIntoAVault = vaultKey != null;
           previousVaultKey = vaultKey;
+
+          if (!movedIntoAVault) {
+            return;
+          }
 
           for (const control of table.filterControls()) {
             if (VAULT_SCOPED_FILTER_KEYS.includes(control.key())) {

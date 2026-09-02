@@ -610,6 +610,18 @@ describe("VaultPopupListTableComponent", () => {
 
           expect(vaultPopupListTableFiltersService.clearVaultScopedFilters).not.toHaveBeenCalled();
         });
+
+        /** All items widens, so nothing selected under the scoped vault has stopped existing. */
+        it("does not drop them when widening to All items", () => {
+          listTableSvc.setScope({ type: VaultScopeType.MyVault });
+          fixture.detectChanges();
+          vaultPopupListTableFiltersService.clearVaultScopedFilters.mockClear();
+
+          listTableSvc.setScope(null);
+          fixture.detectChanges();
+
+          expect(vaultPopupListTableFiltersService.clearVaultScopedFilters).not.toHaveBeenCalled();
+        });
       });
 
       it("keeps every organization's shared folders when unscoped", () => {
