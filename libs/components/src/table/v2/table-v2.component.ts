@@ -136,11 +136,14 @@ function sortRows<T>(
   });
 }
 
-/** A flattened body item: a data row, or a group header with its row-group and count. */
+/**
+ * A flattened body item: a data row, a group header with its row-group and count, or
+ * a group's {@link BitRowGroupComponent.description} line.
+ */
 type RenderItem<T> =
   | { kind: "row"; row: T }
   | { kind: "group"; group: BitRowGroupComponent<T>; count: number; level: number }
-  | { kind: "groupEmpty"; group: BitRowGroupComponent<T>; level: number };
+  | { kind: "groupDescription"; group: BitRowGroupComponent<T>; level: number };
 
 /**
  * **Beta.** `bit-table-v2` is still stabilizing. Do not adopt it in production
@@ -568,6 +571,16 @@ export class BitTableV2Component<T = unknown, S extends string = never, F = Reco
     return `tw-flex tw-items-center ${type}`;
   }
 
+  /**
+   * Chrome for a group's description line, matching its top-level header's horizontal
+   * padding. Only top-level groups render one.
+   */
+  protected groupDescriptionClass(): string {
+    return this.presentation() === "list"
+      ? "tw-px-1 tw-pb-2 tw-text-sm tw-text-muted"
+      : "tw-px-4 tw-py-2 tw-text-sm tw-text-muted";
+  }
+
   /** Collapsible-header chrome: the base header plus a full-width hover/focus toggle affordance. */
   protected groupHeaderButtonClass(level: number): string {
     return (
@@ -684,7 +697,8 @@ export class BitTableV2Component<T = unknown, S extends string = never, F = Reco
   /**
    * The non-virtualized body's render list: {@link rows} as-is when ungrouped, else
    * interleaved headers and rows. A row joins the first group whose `match` claims it;
-   * empty groups are skipped, and unclaimed rows trail in a headerless block.
+   * empty groups are skipped unless they carry a description, and unclaimed rows trail
+   * in a headerless block.
    */
   protected readonly renderItems = computed<RenderItem<T>[]>(() => {
     const rows = this.rows();
@@ -718,13 +732,15 @@ export class BitTableV2Component<T = unknown, S extends string = never, F = Reco
     const top = partition(this._groups(), rows);
     for (const group of this._groups()) {
       const groupRows = top.buckets.get(group);
+      const described = !!group.description();
       if (!groupRows?.length) {
-        // Empty groups auto-hide unless they project `slot="empty"` content.
-        if (group.hasEmptyContent()) {
-          items.push({ kind: "group", group, count: 0, level: 0 });
-          if (!(group.collapsible() && group.collapsed())) {
-            items.push({ kind: "groupEmpty", group, level: 0 });
-          }
+        // An empty group auto-hides unless its description stands in for the missing rows.
+        if (!described) {
+          continue;
+        }
+        items.push({ kind: "group", group, count: 0, level: 0 });
+        if (!(group.collapsible() && group.collapsed())) {
+          items.push({ kind: "groupDescription", group, level: 0 });
         }
         continue;
       }
@@ -732,6 +748,12 @@ export class BitTableV2Component<T = unknown, S extends string = never, F = Reco
       items.push({ kind: "group", group, count: groupRows.length, level: 0 });
       if (group.collapsible() && group.collapsed()) {
         continue;
+      }
+      // The description occupies a grid row inside the group's body, so — unlike the
+      // extension's section, which sits outside its disclosure — it hides when collapsed;
+      // `aria-expanded="false"` has to mean nothing of the group is rendered.
+      if (described) {
+        items.push({ kind: "groupDescription", group, level: 0 });
       }
       const children = group.children();
       if (children.length === 0) {
@@ -791,13 +813,28 @@ export class BitTableV2Component<T = unknown, S extends string = never, F = Reco
     if (item.kind === "group") {
       return item.group;
     }
-    // Distinct from the group's header, which is also keyed by `item.group`.
-    if (item.kind === "groupEmpty") {
-      return item.group.emptyTemplate();
+    if (item.kind === "groupDescription") {
+      return this.descriptionKey(item.group);
     }
     const trackBy = this.trackBy();
     return trackBy ? trackBy(index, item.row) : item.row;
   };
+
+  /** Per-group tokens backing {@link descriptionKey}. */
+  private readonly descriptionKeys = new WeakMap<BitRowGroupComponent<T>, object>();
+
+  /**
+   * A stable trackBy key for a group's description row. The group itself already keys
+   * its header, and a key can't repeat within one render list.
+   */
+  private descriptionKey(group: BitRowGroupComponent<T>): object {
+    let key = this.descriptionKeys.get(group);
+    if (!key) {
+      key = {};
+      this.descriptionKeys.set(group, key);
+    }
+    return key;
+  }
 
   /**
    * Virtual-scroll strategy, provided to the viewport via `VIRTUAL_SCROLL_STRATEGY`.

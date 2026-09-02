@@ -108,16 +108,20 @@
         </div>
       }
     </div>
-  } @else if (item.kind === "groupEmpty") {
-    <!-- An empty group's `slot="empty"` content, spanning every column. -->
+  } @else if (item.kind === "groupDescription") {
+    <!--
+      A group's description: a row whose single cell spans every column, sized like a
+      header so the virtual-scroll strategy's fixed height holds. Single-line text —
+      it clips rather than reflows the rows below it.
+    -->
     <div role="row">
       <div
         role="cell"
         [attr.aria-colspan]="columnCount()"
-        class="tw-px-1 tw-py-2"
+        [class]="groupDescriptionClass()"
         [style.height.px]="forceHeight ? headerHeight(item.level) : null"
       >
-        <ng-container *ngTemplateOutlet="item.group.emptyTemplate()"></ng-container>
+        {{ item.group.description() }}
       </div>
     </div>
   } @else {

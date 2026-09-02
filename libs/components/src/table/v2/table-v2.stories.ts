@@ -1117,20 +1117,20 @@ const emptyGroupTable = defineTable<GroupedRow>(
   signal(
     [...Array(6).keys()].map((i) => ({
       id: i + 1,
-      name: `Item ${i + 1}`,
-      // Cards and notes only — nothing matches the "autofill suggestions" group.
-      type: (["card", "note"] as const)[i % 2],
+      name: `Note ${i + 1}`,
+      // Notes only, so both the "autofill suggestions" and "cards" groups come up empty.
+      type: "note" as const,
     })),
   ),
 );
 
 /**
- * A group with no matching rows renders nothing by default. Project
- * `slot="empty" #slotContainer` content to instead keep the group's header visible
- * and show that content in place of rows — here, an empty autofill-suggestions
- * group's "save a login for this site" tip. The other empty groups still auto-hide.
+ * `[description]` renders explanatory text under a group's header. Setting it also keeps
+ * the group visible when no rows match, so the text stands in for the missing rows —
+ * here, an empty autofill-suggestions group's "save a login for this site" tip. Groups
+ * with no description and no rows still auto-hide, as "Cards" does.
  */
-export const GroupedEmptySlot: Story = {
+export const GroupedDescription: Story = {
   render: () => ({
     props: {
       table: emptyGroupTable,
@@ -1151,11 +1151,11 @@ export const GroupedEmptySlot: Story = {
             <bit-cell *bitCellDef="table.columns.name; let row">{{ row.name }}</bit-cell>
           </bit-column>
 
-          <bit-row-group [match]="isAutofill">
+          <bit-row-group
+            [match]="isAutofill"
+            description="Save a login item for this site to autofill"
+          >
             Autofill suggestions
-            <span slot="empty" #slotContainer class="tw-text-sm tw-text-muted">
-              Save a login item for this site to autofill
-            </span>
           </bit-row-group>
           <bit-row-group [match]="isCard">Cards</bit-row-group>
           <bit-row-group [match]="isNote">Notes</bit-row-group>
