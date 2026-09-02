@@ -9,6 +9,7 @@ import {
   AfterContentInit,
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   TrackByFunction,
   booleanAttribute,
   computed,
@@ -21,6 +22,7 @@ import {
   output,
   signal,
   untracked,
+  viewChild,
 } from "@angular/core";
 
 import { NoResults } from "@bitwarden/assets/svg";
@@ -30,6 +32,7 @@ import { I18nPipe } from "@bitwarden/ui-common";
 import { CheckboxModule } from "../../checkbox";
 import { FILTER_HOST, FilterControl, FilterHost } from "../../filter-menu/filter-tokens";
 import { IconComponent } from "../../icon/icon.component";
+import { ScrollLayoutService } from "../../layout/scroll-layout.directive";
 import { SearchComponent } from "../../search/search.component";
 import { SkeletonTextComponent } from "../../skeleton";
 import { StatusLockupComponent } from "../../status-lockup/status-lockup.component";
@@ -271,6 +274,20 @@ export class BitTableV2Component<T = unknown, S extends string = never, F = Reco
    * applies only when {@link virtualRowHeight} is set and is otherwise a no-op.
    */
   readonly height = input<"fill" | number>();
+
+  /**
+   * Whether the table's scrolling body is the page's primary scroll region, registering it with
+   * {@link ScrollLayoutService} the way `bitScrollLayoutHost` marks one in a layout.
+   *
+   * A `"fill"` table inside a bounded container is the thing that scrolls — the layout's own
+   * region wraps it exactly and never overflows — so features that watch the page's scrolling,
+   * like a collapsing title bar, have to watch the body rather than that region. Off by default:
+   * a table that grows to content scrolls with the page instead, and a page with several tables
+   * has no single one to hand over.
+   *
+   * Only meaningful with `height="fill"`.
+   */
+  readonly scrollLayoutHost = input(false, { transform: booleanAttribute });
 
   /** Optional trackBy for the virtualized row list. */
   readonly trackBy = input<TrackByFunction<T>>();
@@ -661,6 +678,46 @@ export class BitTableV2Component<T = unknown, S extends string = never, F = Reco
 
   /** True when {@link height} is `"fill"`. */
   protected readonly isFill = computed(() => this.height() === "fill");
+
+  private readonly scrollLayout = inject(ScrollLayoutService);
+
+  /**
+   * The element the body scrolls in — the virtual-scroll viewport or the plain overflow container,
+   * whichever the template rendered. Only one exists at a time, and it is replaced when the table
+   * switches between them (virtualized to not, or either to the empty state).
+   */
+  private readonly scrollBody = viewChild<ElementRef<HTMLElement> | CdkVirtualScrollViewport>(
+    "scrollBody",
+  );
+
+  /**
+   * Publishes the scrolling body as the page's scroll region while {@link scrollLayoutHost} is
+   * set, and hands the region back when the table stops being it — the body is swapped out, the
+   * table goes empty, or the table is destroyed. Registering the live element rather than a
+   * captured one keeps the region correct across those swaps.
+   */
+  private readonly _scrollLayoutHostEffect = effect((onCleanup) => {
+    if (!this.scrollLayoutHost()) {
+      return;
+    }
+
+    const body = this.scrollBody();
+    const element = body instanceof CdkVirtualScrollViewport ? body.elementRef : body;
+
+    if (element == null) {
+      return;
+    }
+
+    const previous = untracked(() => this.scrollLayout.scrollableRef());
+    this.scrollLayout.scrollableRef.set(element);
+
+    onCleanup(() => {
+      // Only give the region back if it is still ours; a later host taking over must not be undone.
+      if (this.scrollLayout.scrollableRef() === element) {
+        this.scrollLayout.scrollableRef.set(previous);
+      }
+    });
+  });
 
   /** Row-count cap from {@link height} (clamped to a minimum of 4), or undefined when it isn't a number. */
   protected readonly maxRows = computed(() => {
