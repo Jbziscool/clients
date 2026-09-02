@@ -200,23 +200,34 @@ export function resolveVaultScope(
 }
 
 /**
+ * The path web and desktop mount the vault at — the root of their layouts. Clients that mount it
+ * elsewhere pass their own base path to {@link vaultScopeCommands}; see `VAULT_BASE_ROUTE`.
+ */
+export const DEFAULT_VAULT_BASE_ROUTE = "/vault";
+
+/**
  * The `Router.navigate` commands for a scope — the single place vault scope URLs are built, so
  * the nav and the route parser can't drift.
+ *
+ * Only the base path varies between clients.
  */
-export function vaultScopeCommands(scope: VaultScope): string[] {
+export function vaultScopeCommands(
+  scope: VaultScope,
+  basePath: string = DEFAULT_VAULT_BASE_ROUTE,
+): string[] {
   switch (scope.type) {
     case VaultScopeType.MyVault:
-      return ["/vault", MY_VAULT_ROUTE];
+      return [basePath, MY_VAULT_ROUTE];
     case VaultScopeType.Organization:
       return scope.collectionId == null
-        ? ["/vault", scope.organizationId]
-        : ["/vault", scope.organizationId, scope.collectionId];
+        ? [basePath, scope.organizationId]
+        : [basePath, scope.organizationId, scope.collectionId];
     case VaultScopeType.Trash:
-      return ["/vault", TRASH_ROUTE];
+      return [basePath, TRASH_ROUTE];
     case VaultScopeType.Archive:
-      return ["/vault", ARCHIVE_ROUTE];
+      return [basePath, ARCHIVE_ROUTE];
     default:
-      return ["/vault"];
+      return [basePath];
   }
 }
 

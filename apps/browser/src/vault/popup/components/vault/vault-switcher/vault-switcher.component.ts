@@ -18,6 +18,7 @@ import {
   ALL_ITEMS_SCOPE,
   MY_VAULT_ROUTE,
   navIconTile,
+  VAULT_BASE_ROUTE,
   VaultNavItemType,
   VaultNavItemViewModel,
   VaultNavService,
@@ -25,9 +26,6 @@ import {
   VaultScopeType,
   vaultScopeCommands,
 } from "@bitwarden/vault";
-
-/** The popup mounts the vault under its tab shell rather than at the root. */
-const POPUP_VAULT_ROUTE = "/tabs/vault";
 
 /** A menu entry: one of the account's vaults, or the unscoped "All items" entry. */
 interface VaultSwitcherEntry {
@@ -54,6 +52,7 @@ export class VaultSwitcherComponent {
   private readonly router = inject(Router);
   private readonly accountService = inject(AccountService);
   private readonly vaultNavService = inject(VaultNavService);
+  private readonly basePath = inject(VAULT_BASE_ROUTE);
 
   /**
    * Whether the menu is open, for the chevron's highlight.
@@ -132,17 +131,9 @@ export class VaultSwitcherComponent {
     return vault.type === VaultNavItemType.Personal ? MY_VAULT_ROUTE : vault.id;
   }
 
-  /**
-   * The route commands for an entry, rebased onto the popup's vault path.
-   *
-   * `vaultScopeCommands` builds the `/vault/:vaultId` URLs web and desktop mount at their root;
-   * the popup mounts the same page under its tab shell, so the leading `vault` segment is swapped
-   * for `tabs/vault`. Rebasing rather than hand-building keeps the segment vocabulary — the
-   * `my-vault` sentinel and the organization id — shared with the other clients.
-   */
+  /** The route commands for an entry, on the path this client mounts the vault at. */
   private commandsFor(id: string | null): string[] {
-    const [, ...rest] = vaultScopeCommands(this.scopeFor(id));
-    return [POPUP_VAULT_ROUTE, ...rest];
+    return vaultScopeCommands(this.scopeFor(id), this.basePath);
   }
 
   /** The scope a menu entry names: All items, the personal vault, or an organization's. */

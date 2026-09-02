@@ -8,6 +8,7 @@ import { I18nService } from "@bitwarden/common/platform/abstractions/i18n.servic
 import { OrganizationId } from "@bitwarden/common/types/guid";
 import {
   ALL_ITEMS_SCOPE,
+  VAULT_BASE_ROUTE,
   VaultNavItemType,
   VaultNavService,
   VaultScopeType,
@@ -43,6 +44,9 @@ describe("VaultSwitcherComponent", () => {
         { provide: VaultNavService, useValue: { viewModel$: () => nav$ } },
         { provide: AccountService, useValue: { activeAccount$: of({ id: "user-1" }) } },
         { provide: Router, useValue: { navigate } },
+        // The popup's own vault path, which the app supplies in `services.module.ts`. Without it
+        // the token's default would build the `/vault` URLs web and desktop mount at their root.
+        { provide: VAULT_BASE_ROUTE, useValue: "/tabs/vault" },
         {
           provide: I18nService,
           useValue: { t: (key: string) => key, translate: (key: string) => key },

@@ -50,6 +50,7 @@ import {
   ConfirmKeyConnectorDomainComponent,
   RemovePasswordComponent,
 } from "@bitwarden/key-management-ui";
+import { vaultScopeGuard } from "@bitwarden/vault";
 
 import { AccountSwitcherComponent } from "../auth/popup/account-switching/account-switcher.component";
 import { AuthExtensionRoute } from "../auth/popup/constants/auth-extension-route.constant";
@@ -99,7 +100,6 @@ import {
 } from "../vault/popup/guards/at-risk-passwords.guard";
 import { clearVaultStateGuard } from "../vault/popup/guards/clear-vault-state.guard";
 import { IntroCarouselGuard } from "../vault/popup/guards/intro-carousel.guard";
-import { popupVaultScopeGuard } from "../vault/popup/guards/vault-scope.guard";
 import { AdminSettingsComponent } from "../vault/popup/settings/admin-settings.component";
 import { AppearanceComponent } from "../vault/popup/settings/appearance.component";
 import { ArchiveComponent } from "../vault/popup/settings/archive.component";
@@ -769,7 +769,7 @@ const routes: Routes = [
          */
         path: "vault/:vaultId",
         component: VaultComponent,
-        canActivate: [authGuard, popupVaultScopeGuard],
+        canActivate: [authGuard, vaultScopeGuard],
         canDeactivate: [clearVaultStateGuard],
         data: { elevation: 0 } satisfies RouteDataProperties,
       },

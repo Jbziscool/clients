@@ -19,6 +19,8 @@ import {
 } from "../models/vault-scope";
 import { VaultNavService } from "../services/vault-nav.service";
 
+import { VAULT_BASE_ROUTE } from "./vault-base-route";
+
 /**
  * Guards the `:vaultId` vault routes, redirecting to the unscoped vault when the segment names no
  * vault the side nav offers — a typo, a bookmark to an organization the user has left, or
@@ -38,16 +40,23 @@ import { VaultNavService } from "../services/vault-nav.service";
  * The active account is resolved once and both the nav view model and the collections are read for
  * that user, so an account switch mid-navigation cannot decide membership from one account's vaults
  * and the folder from another's collections.
+ *
+ * Redirects are built on {@link VAULT_BASE_ROUTE} rather than a literal path, so the clients that
+ * mount the vault under a shell of their own — the extension popup, under `/tabs/vault` — share
+ * this guard instead of keeping a twin of the membership rules.
  */
 export const vaultScopeGuard: CanActivateFn = async (route) => {
   const router = inject(Router);
   const vaultNavService = inject(VaultNavService);
   const accountService = inject(AccountService);
   const collectionService = inject(CollectionService);
+  const basePath = inject(VAULT_BASE_ROUTE);
 
-  const allItems = () => router.createUrlTree(["/vault"]);
+  const allItems = () => router.createUrlTree([basePath]);
   const organizationVault = (organizationId: OrganizationId) =>
-    router.createUrlTree(vaultScopeCommands({ type: VaultScopeType.Organization, organizationId }));
+    router.createUrlTree(
+      vaultScopeCommands({ type: VaultScopeType.Organization, organizationId }, basePath),
+    );
 
   const scope = parseVaultScope(route.paramMap.get("vaultId"), route.paramMap.get("collectionId"));
   if (scope == null) {
