@@ -45,14 +45,19 @@ export class VaultPopupScrollPositionService {
     const target = this.scrollPosition;
 
     if (restoring) {
-      this.scrollLayout.restoredScrolled.set(true);
+      // Declared before the jump paints, so collapsing chrome arrives collapsed rather than
+      // animating once the offset lands. Corrected below from where the jump actually went.
+      this.scrollLayout.restoredScrolled.set(target! > 0);
 
       // Use `setTimeout` to scroll after rendering is complete
       setTimeout(() => {
         scrollElement.scrollTo({ top: target!, behavior: "instant" });
-        if (scrollElement.scrollTop === 0) {
-          this.scrollLayout.restoredScrolled.set(false);
-        }
+        // Declared from where the jump actually landed, not from whether one was attempted. The
+        // vault attaches twice — `popup-page`'s region first, then the table's viewport once its
+        // rows render — and the first element never scrolls, so a restore onto it lands at 0.
+        // Reading the result keeps the last attach authoritative whichever order they settle in,
+        // and a stored 0 still resolves to false.
+        this.scrollLayout.restoredScrolled.set(scrollElement.scrollTop > 0);
         setTimeout(() => {
           this.restoring = false;
         });

@@ -288,6 +288,60 @@ describe("VaultPopupScrollPositionService", () => {
         expect(scrollLayout.restoredScrolled()).toBe(false);
       }));
 
+      /**
+       * The vault attaches twice — `popup-page`'s region, then the table's viewport once its rows
+       * render — and the first never scrolls. Declaring the state from whether a jump was
+       * attempted let the no-op restore onto the region cancel the real one onto the viewport.
+       */
+      describe("across the vault's two-phase attach", () => {
+        /** A `scrollTo` that clamps to `max` and only fires when the offset actually changes. */
+        const realistic = (el: HTMLElement, max: number) => {
+          (el as any).scrollTo = jest.fn((opts: { top?: number }) => {
+            const next = Math.min(opts?.top ?? 0, max);
+            if (next === (el as any).scrollTop) {
+              return;
+            }
+            (el as any).scrollTop = next;
+            el.dispatchEvent(new Event("scroll"));
+          });
+          (el as any).scrollTop = 0;
+          return el;
+        };
+
+        /** `popup-page`'s region wraps the table exactly, so it never overflows. */
+        const region = () => realistic(document.createElement("div"), 0);
+        /** The table's own viewport, which does scroll. */
+        const viewport = () => realistic(document.createElement("div"), 1000);
+
+        it("keeps the declared state when the second attach restores the offset", fakeAsync(() => {
+          const scrollLayout = TestBed.inject(ScrollLayoutService);
+          const live = viewport();
+          service["scrollPosition"] = 234;
+
+          service.start(region());
+          service.start(live);
+          tick();
+
+          expect((live as any).scrollTop).toBe(234);
+          expect(scrollLayout.restoredScrolled()).toBe(true);
+
+          service["scrollSubscription"]?.unsubscribe();
+        }));
+
+        it("clears it when the restore lands at the top", fakeAsync(() => {
+          const scrollLayout = TestBed.inject(ScrollLayoutService);
+          service["scrollPosition"] = 0;
+
+          service.start(region());
+          service.start(viewport());
+          tick();
+
+          expect(scrollLayout.restoredScrolled()).toBe(false);
+
+          service["scrollSubscription"]?.unsubscribe();
+        }));
+      });
+
       it("does not leave the restore guard raised after stop", fakeAsync(() => {
         service["scrollPosition"] = 234;
 
