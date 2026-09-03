@@ -426,6 +426,8 @@ const safeProviders: SafeProvider[] = [
       SendApiService,
       MessageListener,
       StateProvider,
+      ConfigService,
+      SdkService,
     ],
   }),
   safeProvider({
