@@ -170,19 +170,13 @@ export class VaultPopupListTableComponent {
     initialValue: false,
   });
 
-  /** The selected organizations, kept in sync with the org chip selection. */
-  private readonly selectedOrgs = signal<Organization[]>([]);
-
   /**
    * Whether the organization filter points at a suspended organization. The table stays mounted in
    * this state so the filter that caused it remains clearable — unmounting would strip the chips
    * and the search box along with it.
    */
-  protected readonly showDeactivatedOrg = computed(() => {
-    const orgs = this.selectedOrgs().filter((o) => o.id !== MY_VAULT);
-    return (
-      orgs.length > 0 && orgs.length === this.selectedOrgs().length && orgs.every((o) => !o.enabled)
-    );
+  protected readonly showDeactivatedOrg = toSignal(this.listFiltersService.suspendedSelection$, {
+    initialValue: false,
   });
 
   private readonly allRows = toSignal(this.listTableService.rows$, {
@@ -477,11 +471,6 @@ export class VaultPopupListTableComponent {
         .pipe(skip(1), takeUntilDestroyed(this.destroyRef))
         .subscribe((values: any) => {
           this.listFiltersService.saveFilters(values);
-          const orgIds: string[] = values.organization ?? [];
-          const orgs = orgIds
-            .map((id) => this.organizationOptions().find((o) => o.value?.id === id)?.value)
-            .filter((o): o is Organization => o != null);
-          this.selectedOrgs.set(orgs);
           this.validateOrgChips(table, values);
         });
 

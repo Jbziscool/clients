@@ -137,12 +137,15 @@ describe("VaultPopupListTableComponent", () => {
 
   /** Emitted by the switcher's clear, which the table follows to reset its own controls. */
   const vaultScopedFiltersCleared$ = new Subject<void>();
+  /** Whether every selected organization is suspended, which blanks the rows. */
+  const suspendedSelection$ = new BehaviorSubject<boolean>(false);
 
   const vaultPopupListTableFiltersService = {
     restoreFilters$: jest.fn().mockReturnValue(of({})),
     saveFilters: jest.fn(),
     clearVaultScopedFilters: jest.fn(),
     vaultScopedFiltersCleared$: vaultScopedFiltersCleared$.asObservable(),
+    suspendedSelection$: suspendedSelection$.asObservable(),
     selectedFilters$: of({
       cipherType: null,
       organization: [] as string[],
@@ -337,10 +340,10 @@ describe("VaultPopupListTableComponent", () => {
     describe("deactivated organization", () => {
       beforeEach(() => {
         // First render so toObservable(showDeactivatedOrg) consumes the initial false via skip(1).
-        // Tests can then observe the transition to true when selectedOrgs is set below.
+        // Tests can then observe the transition to true when the suspended state is set below.
         fixture.detectChanges();
         filteredCiphers$.next([makeCipher({ organizationId: "org-1" })]);
-        component["selectedOrgs"].set([{ enabled: false, id: "org-1" } as Organization]);
+        suspendedSelection$.next(true);
         fixture.detectChanges();
       });
 
@@ -359,7 +362,7 @@ describe("VaultPopupListTableComponent", () => {
       });
 
       it("restores the rows once the filter moves off the suspended organization", () => {
-        component["selectedOrgs"].set([]);
+        suspendedSelection$.next(false);
         fixture.detectChanges();
 
         expect(component["rows"]()).toHaveLength(1);
@@ -376,7 +379,7 @@ describe("VaultPopupListTableComponent", () => {
       it("does not announce again when the filter moves off the suspended organization", () => {
         liveAnnouncer.announce.mockClear();
 
-        component["selectedOrgs"].set([]);
+        suspendedSelection$.next(false);
         fixture.detectChanges();
 
         expect(liveAnnouncer.announce).not.toHaveBeenCalled();

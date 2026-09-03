@@ -212,13 +212,23 @@ export class VaultPopupListTableService {
    * above a list the chips had narrowed and contradict it.
    *
    * Only the chips the current scope still offers are applied — see {@link scopedFilters}.
+   *
+   * A selection of nothing but suspended organizations counts zero. Their ciphers match the
+   * organization's own filter, so the table withholds the rows rather than filtering them out and
+   * renders a message in their place; counting the rows there would report a total above an empty
+   * list.
    */
   readonly itemCount$: Observable<number> = combineLatest([
     this.rows$,
     this.listFiltersService.selectedFilters$,
     this.scope$,
+    this.listFiltersService.suspendedSelection$,
   ]).pipe(
-    map(([rows, selected, scope]) => {
+    map(([rows, selected, scope, suspended]) => {
+      if (suspended) {
+        return 0;
+      }
+
       const filters = this.scopedFilters(selected, scope);
 
       return rows.filter(
@@ -237,8 +247,6 @@ export class VaultPopupListTableService {
    *
    * A scoped vault renders no organization chip, so there is no vault selection for the table to
    * apply and the count must not invent one — the scope already narrows the rows to that vault.
-   * {@link setScope} clears the vault-scoped selections on a switch, so this guards the window
-   * before that lands as well as a scope arriving with filters already cached.
    */
   private scopedFilters(
     selected: {

@@ -55,6 +55,8 @@ describe("VaultPopupListTableService", () => {
     collection: string[];
     folder: string[];
   }>({ cipherType: null, organization: [], collection: [], folder: [] });
+  /** Whether every selected organization is suspended, which blanks the table's rows. */
+  const suspendedSelection$ = new BehaviorSubject<boolean>(false);
 
   const makeCipher = (overrides: Partial<PopupCipherViewLike> = {}): PopupCipherViewLike =>
     ({ id: "cipher-1", name: "Item", type: CipherType.Login, ...overrides }) as PopupCipherViewLike;
@@ -71,6 +73,7 @@ describe("VaultPopupListTableService", () => {
     currentTabIsOnBlocklist$.next(false);
     clickItemsToAutofillVaultView$.next(true);
     selectedFilters$.next({ cipherType: null, organization: [], collection: [], folder: [] });
+    suspendedSelection$.next(false);
 
     cipherService = mock<CipherService>();
     vaultPopupAutofillService = mock<VaultPopupAutofillService>();
@@ -124,7 +127,10 @@ describe("VaultPopupListTableService", () => {
         },
         {
           provide: VaultPopupListTableFiltersService,
-          useValue: { selectedFilters$: selectedFilters$.asObservable() },
+          useValue: {
+            selectedFilters$: selectedFilters$.asObservable(),
+            suspendedSelection$: suspendedSelection$.asObservable(),
+          },
         },
       ],
     });
@@ -203,6 +209,38 @@ describe("VaultPopupListTableService", () => {
         const rows = await firstValueFrom(service.rows$);
 
         expect(rows.map((r) => r.cipher.id)).toEqual(["personal", "org"]);
+      });
+
+      /**
+       * The table withholds a suspended organization's rows and renders a message instead, so the
+       * ciphers are still in `rows$`. Counting them there reports a total above an empty list.
+       */
+      describe("with only suspended organizations selected", () => {
+        beforeEach(() => {
+          filteredCiphers$.next([
+            makeCipher({ id: "org", organizationId: ORG_ID }),
+            makeCipher({ id: "org-2", organizationId: ORG_ID }),
+          ]);
+          selectedFilters$.next({
+            cipherType: null,
+            organization: [ORG_ID],
+            collection: [],
+            folder: [],
+          });
+        });
+
+        it("counts zero, matching the blanked list", async () => {
+          suspendedSelection$.next(true);
+
+          expect(await firstValueFrom(service.itemCount$)).toBe(0);
+        });
+
+        it("counts them again once the selection is no longer all suspended", async () => {
+          suspendedSelection$.next(true);
+          suspendedSelection$.next(false);
+
+          expect(await firstValueFrom(service.itemCount$)).toBe(2);
+        });
       });
 
       /**
