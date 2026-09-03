@@ -28,6 +28,7 @@ import {
 } from "@bitwarden/vault";
 
 import { VaultPopupListTableFiltersService } from "../../../services/vault-popup-list-table-filters.service";
+import { VaultPopupScrollPositionService } from "../../../services/vault-popup-scroll-position.service";
 
 /** A menu entry: one of the account's vaults, or the unscoped "All items" entry. */
 interface VaultSwitcherEntry {
@@ -56,6 +57,7 @@ export class VaultSwitcherComponent {
   private readonly vaultNavService = inject(VaultNavService);
   private readonly basePath = inject(VAULT_BASE_ROUTE);
   private readonly listFiltersService = inject(VaultPopupListTableFiltersService);
+  private readonly scrollPositionService = inject(VaultPopupScrollPositionService);
 
   /**
    * Whether the menu is open, for the chevron's highlight.
@@ -129,6 +131,11 @@ export class VaultSwitcherComponent {
     if (id != null) {
       this.listFiltersService.clearVaultScopedFilters();
     }
+
+    // A different vault is a different list, so the offset names nothing in it. The route is not
+    // reused, so the page is rebuilt and would otherwise restore the offset the previous vault
+    // was left at — opening part-way down, under chrome collapsed by the restore.
+    this.scrollPositionService.stop(true);
 
     void this.router.navigate(this.commandsFor(id), {
       // The scoped vault is the same page narrowed, not a step to return from.

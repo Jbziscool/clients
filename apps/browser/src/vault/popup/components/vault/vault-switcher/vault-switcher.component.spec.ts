@@ -15,6 +15,7 @@ import {
 } from "@bitwarden/vault";
 
 import { VaultPopupListTableFiltersService } from "../../../services/vault-popup-list-table-filters.service";
+import { VaultPopupScrollPositionService } from "../../../services/vault-popup-scroll-position.service";
 
 import { VaultSwitcherComponent } from "./vault-switcher.component";
 
@@ -27,6 +28,7 @@ describe("VaultSwitcherComponent", () => {
   const nav$ = new BehaviorSubject<any>({ vaults: [], organizationDataOwnership: false });
   const navigate = jest.fn();
   const clearVaultScopedFilters = jest.fn();
+  const stopScrollPosition = jest.fn();
 
   const trigger = () => fixture.debugElement.query(By.css('[data-testid="vault-switcher"]'));
 
@@ -40,6 +42,7 @@ describe("VaultSwitcherComponent", () => {
   beforeEach(async () => {
     navigate.mockClear();
     clearVaultScopedFilters.mockClear();
+    stopScrollPosition.mockClear();
     nav$.next({ vaults: [], organizationDataOwnership: false });
 
     await TestBed.configureTestingModule({
@@ -52,6 +55,10 @@ describe("VaultSwitcherComponent", () => {
         {
           provide: VaultPopupListTableFiltersService,
           useValue: { clearVaultScopedFilters },
+        },
+        {
+          provide: VaultPopupScrollPositionService,
+          useValue: { stop: stopScrollPosition },
         },
         {
           provide: I18nService,
@@ -227,6 +234,24 @@ describe("VaultSwitcherComponent", () => {
         fixture.detectChanges();
 
         expect(clearVaultScopedFilters).not.toHaveBeenCalled();
+      });
+    });
+
+    /**
+     * The route is not reused, so the page is rebuilt on every switch and would otherwise restore
+     * the offset the previous vault was left at — opening part-way down, under chrome the restore
+     * collapsed. Reset for All items too: the offset names nothing in a different list either way.
+     */
+    describe("the stored scroll position", () => {
+      it.each([
+        ["an organization's vault", 2],
+        ["the personal vault", 1],
+        ["All items", 0],
+      ])("is discarded when switching to %s", (_label: string, option: number) => {
+        const options = openMenu();
+        (options[option] as HTMLElement).click();
+
+        expect(stopScrollPosition).toHaveBeenCalledWith(true);
       });
     });
 
