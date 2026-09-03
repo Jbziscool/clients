@@ -586,17 +586,6 @@ describe("VaultPopupListTableComponent", () => {
       });
 
       /**
-       * The chips select things that belong to one vault, so a move between vaults leaves them
-       * naming nothing the new scope offers. The controls hold their own values, so clearing the
-       * cache is not enough — a chip left set keeps narrowing the rows, and the selection shows up
-       * again on returning to All items.
-       */
-      /**
-       * The controls hold their own values, so the cache clearing is not enough — a chip left set
-       * would keep narrowing the rows under a vault whose options no longer offer it. Driven by
-       * the switcher's signal rather than the scope, which also publishes on popup open.
-       */
-      /**
        * A chip registers only once it has options, and the folder chip's come from `folders$`,
        * which resolves later than the streams `restoreFilters$` waits on. Seeding on one emission
        * missed it, so the folder filter was the only one that did not survive a popup reopen.
@@ -625,6 +614,11 @@ describe("VaultPopupListTableComponent", () => {
         late.destroy();
       });
 
+      /**
+       * The controls hold their own values, so clearing the cache is not enough — a chip left set
+       * would keep narrowing the rows under a vault whose options no longer offer it. Driven by
+       * the switcher's signal rather than the scope, which also publishes on popup open.
+       */
       it("resets its chip controls when a vault switch clears the cache", async () => {
         collections$.next([{ value: col1, label: "Alpha" } as any]);
         fixture.detectChanges();

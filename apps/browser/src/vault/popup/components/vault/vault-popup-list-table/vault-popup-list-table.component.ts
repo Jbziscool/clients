@@ -83,6 +83,10 @@ import { ItemMoreOptionsComponent } from "../item-more-options/item-more-options
  * Flattens a nested `ChipFilterOption` tree into a single depth-first list. Interim:
  * `bit-filter-option` has no depth or children concept, so a flat list is the only shape the menu
  * renders today. Drop this once the recursive nesting in CL-985 lands.
+ *
+ * Each node keeps the trailing path segment the tree gave it, so a child of "Work" shows as "EU" —
+ * meaning options are tracked by id, since "Work/Personal" and "Home/Personal" flatten to one
+ * label.
  */
 function flattenOptions<T>(options: ChipFilterOption<T>[]): ChipFilterOption<T>[] {
   return options.flatMap((option) => [option, ...flattenOptions(option.children ?? [])]);
@@ -260,11 +264,6 @@ export class VaultPopupListTableComponent {
     initialValue: [] as ChipFilterOption<FolderView>[],
   });
 
-  /**
-   * Collections and folders arrive as nested trees, flattened to one option per node. Each node
-   * keeps the trailing path segment the tree gave it, so a child of "Work" shows as "EU" — meaning
-   * options are tracked by id, since "Work/Personal" and "Home/Personal" flatten to one label.
-   */
   /**
    * Narrowed to the scoped vault's own collections: the vault chip is gone while a vault is scoped,
    * so the filter service sees no organization selection and hands back every organization's — see

@@ -256,20 +256,19 @@ export class VaultComponent implements OnInit, OnDestroy {
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly vaultNavService = inject(VaultNavService);
 
-  /**
-   * The vault the `:vaultId` route segment narrows the page to, resolved against the account's
-   * vaults. Absent segment is All items; `vaultScopeGuard` has already turned away a segment that
-   * names no vault the account can reach.
-   *
-   * Route-derived rather than held in a service: the popup router cache stores the URL, so the
-   * selection survives a close and reopen with no cache key of its own, and the back button walks
-   * vault switches the way it walks any other navigation.
-   */
   /** The account's vaults; `undefined` until they load. */
   private readonly vaultNav = toSignal(
     this.activeUserId$.pipe(switchMap((userId) => this.vaultNavService.viewModel$(userId))),
   );
 
+  /**
+   * The vault the `:vaultId` route segment narrows the page to, resolved against the account's
+   * vaults. An absent segment is All items, and `vaultScopeGuard` has already turned away a
+   * segment naming no vault the account can reach.
+   *
+   * Route-derived rather than held in a service: the popup router cache stores the URL, so the
+   * selection survives a close and reopen with no cache key of its own.
+   */
   protected readonly vaultScope = toSignal(
     combineLatest([
       this.activatedRoute.paramMap,
