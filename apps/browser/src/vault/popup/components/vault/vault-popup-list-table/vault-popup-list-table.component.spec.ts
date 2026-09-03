@@ -593,6 +593,35 @@ describe("VaultPopupListTableComponent", () => {
        * would keep narrowing the rows under a vault whose options no longer offer it. Driven by
        * the switcher's signal rather than the scope, which also publishes on popup open.
        */
+      /**
+       * A chip registers only once it has options, and the folder chip's come from `folders$`,
+       * which resolves later than the streams `restoreFilters$` waits on. Seeding on one emission
+       * missed it, so the folder filter was the only one that did not survive a popup reopen.
+       */
+      it("seeds a chip that registers after the cache resolves", async () => {
+        vaultPopupListTableFiltersService.restoreFilters$.mockReturnValue(
+          of({ folder: ["folder-1"] }),
+        );
+
+        const late = TestBed.createComponent(VaultPopupListTableComponent);
+        late.detectChanges();
+        await late.whenStable();
+
+        // The folder chip's options arrive only now.
+        folders$.next([{ value: { id: "folder-1", name: "Work" }, label: "Work" } as any]);
+        late.detectChanges();
+        await late.whenStable();
+
+        const folder = late.componentInstance["tableEl"]()!
+          .filterControls()
+          .find((c: any) => c.key() === "folder");
+
+        expect(folder).toBeDefined();
+        expect(folder!.value()).toEqual(["folder-1"]);
+
+        late.destroy();
+      });
+
       it("resets its chip controls when a vault switch clears the cache", async () => {
         collections$.next([{ value: col1, label: "Alpha" } as any]);
         fixture.detectChanges();

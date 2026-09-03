@@ -15,7 +15,7 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed, toObservable, toSignal } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
-import { distinctUntilChanged, filter, map, skip, Subject } from "rxjs";
+import { combineLatest, distinctUntilChanged, filter, map, skip, Subject } from "rxjs";
 
 import { JslibModule } from "@bitwarden/angular/jslib.module";
 import { WINDOW } from "@bitwarden/angular/services/injection-tokens";
@@ -444,15 +444,31 @@ export class VaultPopupListTableComponent {
       }
 
       // Seed chips from the persisted cache once the required data resolves.
-      this.listFiltersService
-        .restoreFilters$()
+      //
+      // Keyed on the controls rather than emitted once: a chip registers only when it has options,
+      // and the folder chip's come from `folders$`, which waits on the whole cipher list — later
+      // than the streams `restoreFilters$` resolves. Seeding on a single emission left the folder
+      // selection in the cache with no control to receive it, so it was the one filter that did
+      // not survive a popup reopen. Each control is seeded once, so a value the user has since
+      // cleared is not reapplied.
+      const seeded = new Set<string>();
+      combineLatest([
+        this.listFiltersService.restoreFilters$(),
+        toObservable(table.filterControls, { injector: this.injector }),
+      ])
         .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe((filters) => {
-          for (const control of table.filterControls()) {
-            const value = (filters as Record<string, unknown>)[control.key()];
+        .subscribe(([filters, controls]) => {
+          for (const control of controls) {
+            const key = control.key();
+            if (seeded.has(key)) {
+              continue;
+            }
+
+            const value = (filters as Record<string, unknown>)[key];
             if (value !== undefined) {
               control.setValue(value);
             }
+            seeded.add(key);
           }
         });
 
